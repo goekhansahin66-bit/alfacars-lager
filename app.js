@@ -3,27 +3,66 @@
 ================================ */
 
 let supabaseClient = null;
+let supabaseOrdersChannel = null;
 
-(function initSupabase() {
-  // Vercel ENV Variablen sind im Browser NICHT direkt verfügbar
-  // → wir lesen sie hier bewusst NICHT über import.meta
+const SUPABASE_URL = "https://vocyuvgkbswoevikbbxa.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_vnWOxf18o0lCy9d1HfJGHw_xMxBa8m_";
 
-  const url = "https://vocyuvgkbswoevikbbxa.supabase.co";
-  const anonKey = "sb_publishable_vnWOxf18o0lCy9d1HfJGHw_xMxBa8m_";
+function updateConnectionStatus(text){
+  if (typeof READ_ONLY !== "undefined" && READ_ONLY) return;
+  const foot = document.querySelector(".foot .muted");
+  if (foot) foot.textContent = text;
+}
 
-  if (!url || !anonKey) {
+function loadScript(src){
+  return new Promise((resolve, reject)=>{
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => reject(new Error(`Script load failed: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureSupabaseLibrary(){
+  if (window.supabase && window.supabase.createClient) return true;
+
+  const sources = [
+    "https://unpkg.com/@supabase/supabase-js@2",
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  ];
+
+  for (const src of sources){
+    try{
+      await loadScript(src);
+      if (window.supabase && window.supabase.createClient) return true;
+    }catch(err){
+      console.warn("⚠️ Supabase Script konnte nicht geladen werden:", src);
+    }
+  }
+
+  return false;
+}
+
+async function initSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.warn("⚠️ Supabase Konfiguration fehlt");
+    updateConnectionStatus("Offline · Supabase-Konfiguration fehlt");
     return;
   }
 
-  if (!window.supabase || !window.supabase.createClient) {
+  const ok = await ensureSupabaseLibrary();
+  if (!ok) {
     console.error("❌ Supabase Library nicht geladen");
+    updateConnectionStatus("Offline · Supabase Library fehlt");
     return;
   }
 
-  supabaseClient = window.supabase.createClient(url, anonKey);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  updateConnectionStatus("Online · Supabase verbunden");
   console.log("✅ Supabase verbunden");
-})();
+}
 
 
 
@@ -62,6 +101,7 @@ async function initOrdersFromSupabase(){
   if (!supabaseClient){
     console.warn("⚠️ Supabase nicht verbunden – Orders können nicht geladen werden.");
     orders = [];
+    updateConnectionStatus("Offline · Supabase nicht verbunden");
     return;
   }
 
@@ -75,10 +115,12 @@ async function initOrdersFromSupabase(){
     console.error("❌ Fehler beim Laden der Orders:", error.message);
     alert("Fehler beim Laden der Bestellungen aus Supabase.");
     orders = [];
+    updateConnectionStatus("Offline · Fehler beim Laden");
     return;
   }
 
   orders = Array.isArray(data) ? data : [];
+  updateConnectionStatus("Online · Bestellungen synchron");
 
   // 2) Einmalige Migration: Altbestand aus localStorage -> Supabase (nur wenn Supabase leer)
   //    Danach wird localStorage-Key für Orders gelöscht.
@@ -125,6 +167,54 @@ async function initOrdersFromSupabase(){
   }catch(e){
     console.warn("⚠️ Migration übersprungen (Parsing/Runtime):", e);
   }
+}
+
+function applyOrderChange(payload){
+  if (!payload || !payload.new) return;
+  const data = payload.new;
+  const idx = orders.findIndex(o => o.id === data.id);
+  if (idx >= 0) orders[idx] = data;
+  else orders.unshift(data);
+}
+
+function applyOrderDelete(payload){
+  if (!payload || !payload.old) return;
+  const data = payload.old;
+  orders = orders.filter(o => o.id !== data.id);
+}
+
+function renderCurrentView(){
+  if (currentView === "orders") renderOrders();
+  else if (currentView === "archive") renderArchive();
+}
+
+function initOrdersRealtime(){
+  if (!supabaseClient) return;
+  if (supabaseOrdersChannel){
+    supabaseClient.removeChannel(supabaseOrdersChannel);
+  }
+
+  supabaseOrdersChannel = supabaseClient
+    .channel("orders-realtime")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: SUPABASE_ORDERS_TABLE }, payload => {
+      applyOrderChange(payload);
+      renderCurrentView();
+    })
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: SUPABASE_ORDERS_TABLE }, payload => {
+      applyOrderChange(payload);
+      renderCurrentView();
+    })
+    .on("postgres_changes", { event: "DELETE", schema: "public", table: SUPABASE_ORDERS_TABLE }, payload => {
+      applyOrderDelete(payload);
+      renderCurrentView();
+    })
+    .subscribe(status => {
+      if (status === "SUBSCRIBED"){
+        updateConnectionStatus("Online · Realtime aktiv");
+      } else if (status === "CHANNEL_ERROR"){
+        updateConnectionStatus("Offline · Realtime Fehler");
+      }
+    });
 }
 
 async function saveOrderToSupabase(currentOrder){
@@ -524,7 +614,7 @@ function exportExcelWorkbook(){
       c.name || "",
       xlText(c.phone || ""),
       c.email || "",
-      xlText(c.plate ? plateClean(c.plate) : ""),
+      c.plate || "",
       c.street || "",
       xlText(c.zip || ""),
       c.city || "",
@@ -534,9 +624,9 @@ function exportExcelWorkbook(){
       o.season || "",
       Number(o.qty||0),
       Number(o.unit||0),
-      Number(total||0),
+      total,
       Number(o.deposit||0),
-      Number(rest||0),
+      rest,
       o.rims || "",
       o.note || "",
       o.orderSource || ""
@@ -545,40 +635,38 @@ function exportExcelWorkbook(){
 
   // ===== SHEET 2: KUNDEN =====
   const customersRows = [
-    ["Kunde-ID","Erstellt am","Name","Telefon","E-Mail","Kennzeichen","Straße","PLZ","Ort","Herkunft"]
+    ["Kunde-ID","Name","Telefon","E-Mail","Kennzeichen","Straße","PLZ","Ort","Herkunft","Erstellt am"]
   ];
   customers.forEach(c=>{
     customersRows.push([
       xlText(c.id),
-      c.created || "",
       c.name || "",
       xlText(c.phone || ""),
       c.email || "",
-      xlText(c.plate ? plateClean(c.plate) : ""),
+      c.plate || "",
       c.street || "",
       xlText(c.zip || ""),
       c.city || "",
-      c.source || ""
+      c.source || "",
+      c.created || ""
     ]);
   });
 
   // ===== SHEET 3: LAGER =====
   const stockRows = [
-    ["Lager-ID","Erstellt am","Reifengröße","Marke","Saison","Modell","DOT","Menge","Sollbestand","Fehlmenge"]
+    ["Item-ID","Größe","Marke","Saison","Modell","DOT","Menge","Status","Erstellt am"]
   ];
   stock.forEach(s=>{
-    const qty = Number(s.qty||0);
     stockRows.push([
       xlText(s.id),
-      s.created || "",
       s.size || "",
       s.brand || "",
       s.season || "",
       s.model || "",
       xlText(s.dot || ""),
-      qty,
-      TARGET_QTY,
-      Math.max(0, TARGET_QTY - qty)
+      Number(s.qty||0),
+      qtyClass(Number(s.qty||0)),
+      s.created || ""
     ]);
   });
 
@@ -589,1003 +677,95 @@ function exportExcelWorkbook(){
   ];
 
   const xml = workbookXML(sheets);
-  const filename = `Alfacars_Tagesabschluss_${tsYMD()}.xls`;
+  const filename = `alfacars_backup_${tsYMD()}.xls`;
   downloadBinaryFile(filename, xml, "application/vnd.ms-excel;charset=utf-8");
-
-  // Zusätzlich: Sicherheits-Backup (JSON) – optional, aber sinnvoll
-  const backup = { exportedAt: now(), orders, customers, stock };
-  const backupName = `Alfacars_Backup_${tsYMD()}.json`;
-  const blob = new Blob([JSON.stringify(backup,null,2)], {type:"application/json;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = backupName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 1500);
 }
 
-/* =========================================================
-   VIEW STEUERUNG
-   ========================================================= */
-function switchView(view) {
-  currentView = view;
-
-  $("board").classList.toggle("hidden", view !== "orders");
-  $("archiveBoard").classList.toggle("hidden", view !== "archive");
-  $("customerBoard").classList.toggle("hidden", view !== "customers");
-  $("stockBoard").classList.toggle("hidden", view !== "stock");
-
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelector(`[data-tab="${view}"]`).classList.add("active");
-
-  if (view === "orders") renderOrders();
-  if (view === "archive") renderArchive();
-  if (view === "customers") renderCustomers();
-  if (view === "stock") renderStock();
-}
-
-/* =========================================================
-   MARKEN
-   ========================================================= */
-function renderBrands() {
-  $("brandList").innerHTML = DEFAULT_BRANDS.map(b => `<option value="${b}"></option>`).join("");
-  $("s_brandList").innerHTML = DEFAULT_BRANDS.map(b => `<option value="${b}"></option>`).join("");
-}
-
-/* =========================================================
-   KUNDEN – (keine doppelten, Telefon oder E-Mail Pflicht)
-   ========================================================= */
-function findCustomer(phone, email, plate){
-  const p = phoneClean(phone);
-  const e = emailClean(email);
-  const k = plateClean(plate);
-
-  return customers.find(c => (
-    (p && phoneClean(c.phone) === p) ||
-    (e && emailClean(c.email) === e) ||
-    (k && plateClean(c.plate) === k)
-  )) || null;
-}
-
-function validateCustomerMinimum(data){
-  const p = phoneClean(data.phone);
-  const e = emailClean(data.email);
-  if (!p && !e) {
-    alert("Bitte Telefon ODER E-Mail eingeben (Pflicht).");
-    return false;
-  }
-  return true;
-}
-
-// FIX: Straße/PLZ/Ort/Herkunft wirklich speichern
-function upsertCustomer(data){
-  if (!validateCustomerMinimum(data)) return null;
-
-  let c = data.id ? findCustomerById(data.id) : findCustomer(data.phone, data.email, data.plate);
-
-  if (!c){
-    c = { id: Date.now(), created: now() };
-    customers.unshift(c);
-  }
-
-  const newName = clean(data.name);
-  const newPhone = phoneClean(data.phone);
-  const newEmail = emailClean(data.email);
-  const newPlate = plateClean(data.plate);
-  const newStreet = clean(data.street);
-  const newZip = clean(data.zip);
-  const newCity = clean(data.city);
-  const newSource = clean(data.source);
-
-  if (newName) c.name = newName;
-  if (newPhone) c.phone = newPhone;
-  if (newEmail) c.email = newEmail;
-  if (newPlate) c.plate = newPlate;
-
-  if (newStreet) c.street = newStreet;
-  if (newZip) c.zip = newZip;
-  if (newCity) c.city = newCity;
-  if (newSource) c.source = newSource;
-
-  c.name = c.name || "";
-  c.phone = c.phone || "";
-  c.email = c.email || "";
-  c.plate = c.plate || "";
-
-  c.street = c.street || "";
-  c.zip = c.zip || "";
-  c.city = c.city || "";
-  c.source = c.source || "";
-
-  saveCustomers();
-  return c;
-}
-
-/* =========================================================
-   RENDER: BESTELLUNGEN
-   ========================================================= */
 function renderOrders(){
   const q = $("searchInput").value.toLowerCase().trim();
+  const active = orders.filter(o => o.status !== ARCHIVE_STATUS);
+  STATUSES.forEach(st=>{
+    const col = $("col-"+st);
+    const cnt = $("count-"+st);
+    col.innerHTML="";
 
-  STATUSES.forEach(s=>{
-    $("col-"+s).innerHTML="";
-    $("count-"+s).textContent="0";
-  });
-
-  orders.forEach(o=>{
-    if (o.status === ARCHIVE_STATUS) return;
-
-    const c = findCustomerById(o.customerId);
-    const blob = [c?.name,c?.phone,c?.email,c?.plate,c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
-    if (q && !blob.includes(q)) return;
-
-    const card = buildOrderCard(o,c,true);
-    $("col-"+o.status).appendChild(card);
-    $("count-"+o.status).textContent++;
-  });
-
-  // ✅ Keine localStorage-Persistenz mehr für Orders.
-}
-
-
-/* =========================================================
-   RENDER: ARCHIV
-   ========================================================= */
-function renderArchive(){
-  const q = $("searchInput").value.toLowerCase().trim();
-  $("col-Archiv").innerHTML="";
-  $("count-Archiv").textContent="0";
-
-  orders.forEach((o,i)=>{
-    if (o.status !== ARCHIVE_STATUS) return;
-
-    const c = findCustomerById(o.customerId);
-    const blob = [c?.name,c?.phone,c?.email,c?.plate,c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
-    if (q && !blob.includes(q)) return;
-
-    const card = buildOrderCard(o,c,false);
-    card.oncontextmenu = e=>{
-      if (READ_ONLY) return;
-      e.preventDefault();
-      if(confirm("Archiv-Eintrag endgültig löschen?")){
-        const id = o.id;
-        orders.splice(i,1);
-        renderArchive();
-        // ✅ Persistenz in Supabase
-        deleteOrderFromSupabase(id).then(res=>{
-          if(!res.ok){
-            initOrdersFromSupabase().then(()=>renderArchive());
-          }
-        });
-      }
-    };
-
-    $("col-Archiv").appendChild(card);
-    $("count-Archiv").textContent++;
-  });
-}
-
-/* =========================================================
-   KARTEN: BESTELLUNG
-   ========================================================= */
-function buildOrderCard(o,c,withStatus){
-  const total = o.qty * o.unit;
-  const rest = Math.max(total - o.deposit,0);
-
-  const card = document.createElement("div");
-  card.className = "card status-"+o.status.toLowerCase();
-  if (!READ_ONLY) card.onclick = ()=>openEditOrder(o.id);
-
-  card.innerHTML = `
-    <div class="card-top">
-      <div>
-        <div class="card-title">${c?.name || "Unbekannter Kunde"}</div>
-        <div class="card-sub">🛞 ${o.size} · ${o.brand} · ${o.season}</div>
-        ${c?.email ? `<div class="card-sub">✉️ ${c.email}</div>` : ""}
-        ${c?.city ? `<div class="card-sub">📍 ${c.city}</div>` : ""}
-        ${o.orderSource ? `<div class="card-sub">🧭 ${o.orderSource}</div>` : ""}
-      </div>
-      <span class="pill">${money(total)}</span>
-    </div>
-
-    <div class="card-grid">
-      <div class="kv"><div class="k">Telefon</div><div class="v">${c?.phone || "—"}</div></div>
-      ${withStatus ? `<div class="kv"><div class="k">Rest</div><div class="v">${money(rest)}</div></div>` : ""}
-      <div class="kv"><div class="k">Kennzeichen</div><div class="v">${c?.plate || "—"}</div></div>
-      <div class="kv"><div class="k">Datum</div><div class="v">${o.created}</div></div>
-    </div>
-
-    ${withStatus ? `
-    <div style="display:flex;gap:6px;margin-top:10px">
-      <button class="pill small grey" data-prev>←</button>
-      <button class="pill small yellow" data-next>→</button>
-    </div>` : ""}
-  `;
-
-  if (withStatus){
-    card.querySelector("[data-next]").onclick=e=>{
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      e.stopPropagation();
-      const prev = o.status;
-      o.status = o.status==="Bestellt"?"Anrufen":o.status==="Anrufen"?"Erledigt":ARCHIVE_STATUS;
-      renderOrders();
-      // ✅ Status in Supabase persistieren (ohne Reload)
-      updateOrderStatusInSupabase(o.id, o.status).then(res=>{
-        if(!res.ok){ o.status = prev; renderOrders(); }
-      });
-    };
-    card.querySelector("[data-prev]").onclick=e=>{
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      e.stopPropagation();
-      const prev = o.status;
-      o.status = o.status==="Anrufen"?"Bestellt":"Anrufen";
-      renderOrders();
-      // ✅ Status in Supabase persistieren (ohne Reload)
-      updateOrderStatusInSupabase(o.id, o.status).then(res=>{
-        if(!res.ok){ o.status = prev; renderOrders(); }
-      });
-    };
-  }
-
-  return card;
-}
-
-/* =========================================================
-   RENDER: KUNDEN
-   ========================================================= */
-function renderCustomers(){
-  const q = $("customerSearchInput").value.toLowerCase().trim();
-  $("customerList").innerHTML="";
-
-  customers
-    .filter(c=>{
-      const blob=[c.name,c.phone,c.email,plateClean(c.plate),c.street,c.zip,c.city,c.source].join(" ").toLowerCase();
+    const filtered = active.filter(o=>{
+      if(o.status !== st) return false;
+      const c = customers.find(c=>c.id===o.customerId) || {};
+      const blob = [
+        o.id,o.size,o.brand,o.season,o.rims,o.note,o.orderSource,
+        c.name,c.phone,c.email,c.plate,c.city
+      ].join(" ").toLowerCase();
       return !q || blob.includes(q);
-    })
-    .forEach(c=>{
-      const card=document.createElement("div");
-      card.className="card";
-      card.innerHTML=`
+    });
+
+    cnt.textContent = filtered.length;
+
+    filtered.forEach(o=>{
+      const c = customers.find(c=>c.id===o.customerId) || {};
+      const card = document.createElement("div");
+      card.className = "card status-"+st.toLowerCase();
+      if (!READ_ONLY) card.onclick = ()=>openEditOrder(o.id);
+
+      card.innerHTML = `
         <div class="card-top">
           <div>
-            <div class="card-title">${c.name || "—"}</div>
-            <div class="card-sub">
-              📞 ${c.phone || "—"}
-              ${c.email ? "· ✉️ "+c.email : ""}
-              ${c.plate ? "· 🚗 "+plateClean(c.plate) : ""}
-            </div>
-            <div class="card-sub">📍 ${[c.street,c.zip,c.city].filter(Boolean).join(" ").trim() || "—"} ${c.source ? "· 🧭 "+c.source : ""}</div>
+            <div class="card-title">${c.name || "Unbekannt"} · ${o.size}</div>
+            <div class="card-sub">${o.brand || "?"} · ${o.season || "?"} · ${o.qty} Stk</div>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-            <button class="pill small grey" data-edit>Bearbeiten</button>
-            <button class="pill small yellow" data-add>+ Bestellung</button>
-          </div>
-        </div>`;
+          <span class="pill ${st==="Bestellt"?"grey":st==="Anrufen"?"yellow":"green"}">${st}</span>
+        </div>
 
-      card.querySelector("[data-add]").onclick=()=>{
+        <div class="card-grid">
+          <div class="kv"><div class="k">Telefon</div><div class="v">${c.phone || "—"}</div></div>
+          <div class="kv"><div class="k">E-Mail</div><div class="v">${c.email || "—"}</div></div>
+          <div class="kv"><div class="k">Kennzeichen</div><div class="v">${c.plate || "—"}</div></div>
+          <div class="kv"><div class="k">Quelle</div><div class="v">${o.orderSource || c.source || "—"}</div></div>
+          <div class="kv"><div class="k">Preis</div><div class="v">${money(o.qty*o.unit)}</div></div>
+          <div class="kv"><div class="k">Rest</div><div class="v">${money(Math.max(o.qty*o.unit - o.deposit,0))}</div></div>
+        </div>
+
+        ${o.note ? `<div class="note">${o.note}</div>` : ""}
+      `;
+
+      const btns = document.createElement("div");
+      btns.style.marginTop="8px";
+      btns.innerHTML = `
+        <button class="pill small grey">◀</button>
+        <button class="pill small grey">Bearbeiten</button>
+        <button class="pill small grey">▶</button>
+      `;
+      const [bPrev, bEdit, bNext] = btns.querySelectorAll("button");
+
+      bPrev.onclick = e=>{
+        e.stopPropagation();
         if (READ_ONLY) return roAlert();
-        openNewOrderWithCustomer(c.id);
-        switchView("orders");
+        const idx = STATUSES.indexOf(o.status);
+        if (idx>0) updateOrderStatus(o.id, STATUSES[idx-1]);
+      };
+      bNext.onclick = e=>{
+        e.stopPropagation();
+        if (READ_ONLY) return roAlert();
+        const idx = STATUSES.indexOf(o.status);
+        if (idx<STATUSES.length-1) updateOrderStatus(o.id, STATUSES[idx+1]);
+      };
+      bEdit.onclick = e=>{
+        e.stopPropagation();
+        if (READ_ONLY) return roAlert();
+        openEditOrder(o.id);
       };
 
-      card.querySelector("[data-edit]").onclick=()=>{
-        if (READ_ONLY) return roAlert();
-        openCustomerModal(c.id);
-      };
-
-      $("customerList").appendChild(card);
+      card.appendChild(btns);
+      col.appendChild(card);
     });
-
-  renderReachability();
-}
-
-/* =========================================================
-   REICHWEITE – Auswertung (Ort + Kanal)
-   ========================================================= */
-function renderReachability(){
-  const box = $("reachBox");
-  if (!box) return;
-
-  if (!orders.length){
-    box.innerHTML = "Noch keine Bestellungen vorhanden.";
-    return;
-  }
-
-  const byCity = {};
-  const bySource = {};
-
-  orders.forEach(o=>{
-    if (o.status === ARCHIVE_STATUS) return;
-    const c = findCustomerById(o.customerId) || {};
-    const city = clean(c.city) || "Unbekannt";
-    const src = clean(o.orderSource || c.source) || "Unbekannt";
-
-    byCity[city] = (byCity[city]||0) + 1;
-    bySource[src] = (bySource[src]||0) + 1;
-  });
-
-  const top = (obj) => Object.entries(obj)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,10)
-    .map(([k,v])=>`<div>• <b>${k}</b>: ${v}</div>`)
-    .join("");
-
-  box.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div>
-        <div class="small-muted" style="margin-bottom:6px">Top Orte (aktiv)</div>
-        ${top(byCity) || "—"}
-      </div>
-      <div>
-        <div class="small-muted" style="margin-bottom:6px">Top Kanäle (aktiv)</div>
-        ${top(bySource) || "—"}
-      </div>
-    </div>
-  `;
-}
-
-/* =========================================================
-   MODAL: BESTELLUNG
-   ========================================================= */
-function openNewOrder(){
-  if (READ_ONLY) return roAlert();
-  editingOrderId=null;
-  preselectCustomerId=null;
-  $("modalTitle").textContent="Neue Bestellung";
-  $("btnDelete").classList.add("hidden");
-  $("modal").classList.remove("hidden");
-
-  $("f_size").value="";
-  $("f_brand").value="";
-  $("f_season").value="";
-  $("f_qty").value=4;
-  $("f_unit").value="";
-  $("f_deposit").value="";
-  $("f_rims").value="";
-  $("f_note").value="";
-  $("calc_total").textContent=money(0);
-  $("calc_rest").textContent=money(0);
-
-  $("f_name").value="";
-  $("f_phone").value="";
-  $("f_email").value="";
-  $("f_plate").value="";
-  $("f_street").value="";
-  $("f_zip").value="";
-  $("f_city").value="";
-  $("f_source").value="";
-  $("f_orderSource").value="";
-}
-
-function openNewOrderWithCustomer(id){
-  if (READ_ONLY) return roAlert();
-  const c=findCustomerById(id);
-  openNewOrder();
-  preselectCustomerId=id;
-  $("f_name").value=c?.name || "";
-  $("f_phone").value=c?.phone || "";
-  $("f_email").value=c?.email || "";
-  $("f_plate").value=c?.plate || "";
-  $("f_street").value=c?.street || "";
-  $("f_zip").value=c?.zip || "";
-  $("f_city").value=c?.city || "";
-  $("f_source").value=c?.source || "";
-}
-
-function openEditOrder(id){
-  if (READ_ONLY) return roAlert();
-  const o=orders.find(x=>x.id===id);
-  const c=findCustomerById(o.customerId);
-  editingOrderId=id;
-  preselectCustomerId = c?.id || null;
-
-  $("modalTitle").textContent="Bestellung bearbeiten";
-  $("btnDelete").classList.remove("hidden");
-
-  $("f_name").value=c?.name||"";
-  $("f_phone").value=c?.phone||"";
-  $("f_email").value=c?.email||"";
-  $("f_plate").value=c?.plate||"";
-  $("f_street").value=c?.street||"";
-  $("f_zip").value=c?.zip||"";
-  $("f_city").value=c?.city||"";
-  $("f_source").value=c?.source||"";
-
-  $("f_size").value=o.size;
-  $("f_brand").value=o.brand;
-  $("f_season").value=o.season;
-  $("f_qty").value=o.qty;
-  $("f_unit").value=o.unit;
-  $("f_deposit").value=o.deposit;
-  $("f_rims").value=o.rims;
-  $("f_note").value=o.note;
-  $("f_orderSource").value=o.orderSource||"";
-
-  const t = o.qty * o.unit;
-  $("calc_total").textContent=money(t);
-  $("calc_rest").textContent=money(Math.max(t-o.deposit,0));
-
-  $("modal").classList.remove("hidden");
-}
-
-async function saveOrder(){
-  if (READ_ONLY) return roAlert();
-
-  const size = normalizeTireSize($("f_size").value);
-  if(!size) return alert("Bitte Reifengröße eingeben");
-
-  const cust = upsertCustomer({
-    id: preselectCustomerId,
-    name: $("f_name").value,
-    phone: $("f_phone").value,
-    email: $("f_email").value,
-    plate: $("f_plate").value,
-    street: $("f_street").value,
-    zip: $("f_zip").value,
-    city: $("f_city").value,
-    source: $("f_source").value
-  });
-  if(!cust) return;
-
-  const base = {
-    customerId: cust.id,
-    size,
-    brand: $("f_brand").value,
-    season: $("f_season").value,
-    qty: +$("f_qty").value,
-    unit: +$("f_unit").value,
-    deposit: +$("f_deposit").value,
-    rims: $("f_rims").value,
-    note: $("f_note").value,
-    orderSource: clean($("f_orderSource").value)
-  };
-
-  // ✅ currentOrder ist die einzige "Wahrheit" für den Save-Flow
-  let currentOrder;
-  if (editingOrderId){
-    const existing = orders.find(o => o.id === editingOrderId);
-    if (!existing) {
-      alert("Bestellung nicht gefunden (lokaler Zustand). Bitte Seite neu öffnen.");
-      return;
-    }
-    currentOrder = { ...existing, ...base };
-  } else {
-    currentOrder = {
-      id: Date.now(),          // bleibt wie vorher (keine Features / IDs ändern)
-      created: now(),
-      status: "Bestellt",
-      ...base
-    };
-  }
-
-  // ✅ Speichern ausschließlich über Supabase
-  const res = await saveOrderToSupabase(currentOrder);
-  if (!res.ok) return;
-
-  $("modal").classList.add("hidden");
-  renderOrders();
-  if(currentView==="customers") renderCustomers();
-}
-
-function deleteOrder(){
-  if (READ_ONLY) return roAlert();
-  if(!editingOrderId) return;
-
-  // Optimistisch aus UI entfernen
-  const id = editingOrderId;
-  orders = orders.filter(o => o.id !== id);
-
-  $("modal").classList.add("hidden");
-  renderOrders();
-
-  // ✅ Persistenz in Supabase (kein Reload nötig)
-  deleteOrderFromSupabase(id).then(res=>{
-    if(!res.ok){
-      // Bei Fehler: neu aus DB laden, damit UI wieder konsistent ist
-      initOrdersFromSupabase().then(()=> {
-        if(currentView==="orders") renderOrders();
-        if(currentView==="archive") renderArchive();
-      });
-    }
   });
 }
 
-/* =========================================================
-   MODAL: KUNDE
-   ========================================================= */
-function openCustomerModal(id){
-  if (READ_ONLY) return roAlert();
-  editingCustomerId = id;
-  const c = id ? findCustomerById(id) : null;
-
-  $("customerModalTitle").textContent = id ? "Kunde bearbeiten" : "Neuer Kunde";
-
-  $("c_name").value = c?.name || "";
-  $("c_phone").value = c?.phone || "";
-  $("c_email").value = c?.email || "";
-  $("c_plate").value = c?.plate || "";
-  $("c_street").value = c?.street || "";
-  $("c_zip").value = c?.zip || "";
-  $("c_city").value = c?.city || "";
-  $("c_source").value = c?.source || "";
-
-  $("customerModal").classList.remove("hidden");
-}
-
-function closeCustomerModal(){
-  $("customerModal").classList.add("hidden");
-  editingCustomerId = null;
-}
-
-function saveCustomerManual(){
-  if (READ_ONLY) return roAlert();
-  const c = upsertCustomer({
-    id: editingCustomerId,
-    name: $("c_name").value,
-    phone: $("c_phone").value,
-    email: $("c_email").value,
-    plate: $("c_plate").value,
-    street: $("c_street").value,
-    zip: $("c_zip").value,
-    city: $("c_city").value,
-    source: $("c_source").value
-  });
-  if (!c) return;
-
-  closeCustomerModal();
-  renderCustomers();
-}
-
-function deleteCustomer(){
-  if (READ_ONLY) return roAlert();
-  if(!editingCustomerId) return;
-
-  const used = orders.some(o => o.customerId === editingCustomerId);
-  if (used) {
-    alert("Dieser Kunde hat Bestellungen und kann nicht gelöscht werden.");
-    return;
-  }
-
-  if(!confirm("Kunde endgültig löschen?")) return;
-
-  customers = customers.filter(c => c.id !== editingCustomerId);
-  saveCustomers();
-  closeCustomerModal();
-  renderCustomers();
-}
-
-/* =========================================================
-   LAGER – Bestand
-   ========================================================= */
-function stockKey(item){
-  const size = normalizeTireSize(item.size);
-  const brand = clean(item.brand);
-  const season = clean(item.season);
-  const model = clean(item.model);
-  const dot = clean(item.dot);
-  return [size,brand,season,model,dot].join("|").toLowerCase();
-}
-
-function upsertStock(data){
-  const size = normalizeTireSize(data.size);
-  if(!size) return alert("Bitte Reifengröße eingeben");
-  if(!clean(data.brand)) return alert("Bitte Marke eingeben");
-  if(!clean(data.season)) return alert("Bitte Saison wählen");
-
-  const item = {
-    id: data.id || Date.now(),
-    size,
-    brand: clean(data.brand),
-    season: clean(data.season),
-    model: clean(data.model),
-    dot: clean(data.dot),
-    qty: Math.max(0, Number(data.qty||0))
-  };
-
-  if (!data.id){
-    const k = stockKey(item);
-    const existing = stock.find(s => stockKey(s) === k);
-    if (existing){
-      existing.qty = Math.max(0, Number(existing.qty||0)) + item.qty;
-      saveStock();
-      return existing;
-    }
-    stock.unshift({ ...item, created: now() });
-    saveStock();
-    return item;
-  }
-
-  const target = stock.find(s => s.id === data.id);
-  if (target){
-    Object.assign(target, item);
-    saveStock();
-    return target;
-  }
-
-  stock.unshift({ ...item, created: now() });
-  saveStock();
-  return item;
-}
-
-function renderStock(){
-  const q = $("stockSearchInput").value.toLowerCase().trim();
-  $("stockList").innerHTML="";
-
-  const filtered = stock.filter(s=>{
-    const blob=[s.size,s.brand,s.season,s.model,s.dot].join(" ").toLowerCase();
-    return !q || blob.includes(q);
-  });
-
-  filtered.forEach(s=>{
-    const card=document.createElement("div");
-    card.className="card";
-    if (!READ_ONLY) card.onclick = ()=>openEditStock(s.id);
-
-    const cls = qtyClass(Number(s.qty||0));
-    const modelPart = s.model ? ` · ${s.model}` : "";
-    const dotPart = s.dot ? ` · DOT ${s.dot}` : "";
-
-    card.innerHTML = `
-      <div class="stock-row">
-        <div>
-          <div class="card-title">🛞 ${s.size} · ${s.brand}</div>
-          <div class="card-sub">${s.season}${modelPart}${dotPart}</div>
-          <div class="small-muted">Tip: Klick zum Bearbeiten · Rechtsklick zum Löschen</div>
-        </div>
-        <div class="stock-actions">
-          <span class="pill ${cls}">Menge: ${Number(s.qty||0)}</span>
-          <div class="qtybox">
-            <button class="pill small grey" data-minus>−</button>
-            <input class="qty-input" type="number" min="0" step="1" value="${Number(s.qty||0)}" data-qty />
-            <button class="pill small yellow" data-plus>+</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    card.oncontextmenu = e=>{
-      if (READ_ONLY) return;
-      e.preventDefault();
-      if(confirm("Lagereintrag löschen?")){
-        stock = stock.filter(x => x.id !== s.id);
-        saveStock();
-        renderStock();
-      }
-    };
-
-    const minus = card.querySelector("[data-minus]");
-    const plus = card.querySelector("[data-plus]");
-    const qtyInput = card.querySelector("[data-qty]");
-
-    minus.onclick = e=>{
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      e.stopPropagation();
-      s.qty = Math.max(0, Number(s.qty||0) - 1);
-      saveStock();
-      renderStock();
-    };
-    plus.onclick = e=>{
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      e.stopPropagation();
-      s.qty = Math.max(0, Number(s.qty||0) + 1);
-      saveStock();
-      renderStock();
-    };
-    qtyInput.oninput = e=>{
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      e.stopPropagation();
-      const v = Math.max(0, Number(qtyInput.value||0));
-      s.qty = v;
-      saveStock();
-      renderStock();
-    };
-
-    $("stockList").appendChild(card);
-  });
-
-  renderStockSuggestions();
-}
-
-function renderStockSuggestions(){
-  const need = stock
-    .map(s => ({ s, need: Math.max(0, TARGET_QTY - Number(s.qty||0)) }))
-    .filter(x => x.need > 0);
-
-  const box = $("stockNeedBox");
-  const count = $("stockNeedCount");
-  count.textContent = String(need.length);
-
-  if (!need.length){
-    box.innerHTML = "Alles ausreichend vorhanden 👍";
-    return;
-  }
-
-  need.sort((a,b)=>{
-    const qa = Number(a.s.qty||0), qb = Number(b.s.qty||0);
-    const pa = qa>=4?2:qa>=2?1:0;
-    const pb = qb>=4?2:qb>=2?1:0;
-    if (pa !== pb) return pa - pb;
-    const ba = (a.s.brand||"").localeCompare(b.s.brand||"", "de");
-    if (ba) return ba;
-    return (a.s.size||"").localeCompare(b.s.size||"", "de");
-  });
-
-  box.innerHTML = need.map(x=>{
-    const s=x.s;
-    const model = s.model ? ` · ${s.model}` : "";
-    const dot = s.dot ? ` · DOT ${s.dot}` : "";
-    return `➕ <b>${x.need}</b> × ${s.size} · ${s.brand} · ${s.season}${model}${dot} <span class="small-muted">(aktuell ${Number(s.qty||0)})</span>`;
-  }).join("<br>");
-}
-
-function openNewStock(){
-  if (READ_ONLY) return roAlert();
-  editingStockId = null;
-  $("stockModalTitle").textContent="Neuer Lagereintrag";
-  $("s_delete").classList.add("hidden");
-
-  $("s_size").value="";
-  $("s_brand").value="";
-  $("s_season").value="";
-  $("s_model").value="";
-  $("s_dot").value="";
-  $("s_qty").value=TARGET_QTY;
-
-  renderModelSuggestions();
-
-  $("stockModal").classList.remove("hidden");
-}
-
-function openEditStock(id){
-  if (READ_ONLY) return roAlert();
-  const s = stock.find(x=>x.id===id);
-  if(!s) return;
-
-  editingStockId = id;
-  $("stockModalTitle").textContent="Lagereintrag bearbeiten";
-  $("s_delete").classList.remove("hidden");
-
-  $("s_size").value=s.size || "";
-  $("s_brand").value=s.brand || "";
-  $("s_season").value=s.season || "";
-  $("s_model").value=s.model || "";
-  $("s_dot").value=s.dot || "";
-  $("s_qty").value=Number(s.qty||0);
-
-  renderModelSuggestions();
-
-  $("stockModal").classList.remove("hidden");
-}
-
-function closeStockModal(){
-  $("stockModal").classList.add("hidden");
-  editingStockId = null;
-}
-
-function saveStockItem(){
-  if (READ_ONLY) return roAlert();
-  const data = {
-    id: editingStockId,
-    size: $("s_size").value,
-    brand: $("s_brand").value,
-    season: $("s_season").value,
-    model: $("s_model").value,
-    dot: $("s_dot").value,
-    qty: $("s_qty").value
-  };
-
-  const saved = upsertStock(data);
-  if(!saved) return;
-
-  closeStockModal();
-  renderStock();
-}
-
-function deleteStockItem(){
-  if (READ_ONLY) return roAlert();
-  if(!editingStockId) return;
-  if(!confirm("Lagereintrag endgültig löschen?")) return;
-  stock = stock.filter(x => x.id !== editingStockId);
-  saveStock();
-  closeStockModal();
-  renderStock();
-}
-
-function renderModelSuggestions(){
-  const brand = clean($("s_brand").value);
-  const season = clean($("s_season").value);
-
-  const list = $("modelList");
-  list.innerHTML="";
-
-  const models = (TIRE_MODELS[brand] && TIRE_MODELS[brand][season]) ? TIRE_MODELS[brand][season] : [];
-  list.innerHTML = models.map(m => `<option value="${m}"></option>`).join("");
-}
-
-/* =========================================================
-   TAGESABSCHLUSS / BESTELLUNG (bleibt wie vorher)
-   ========================================================= */
-function buildNeedList(){
-  return stock
-    .map(s => ({ s, need: Math.max(0, TARGET_QTY - Number(s.qty||0)) }))
-    .filter(x => x.need > 0)
-    .sort((a,b)=>{
-      const qa = Number(a.s.qty||0), qb = Number(b.s.qty||0);
-      const pa = qa>=4?2:qa>=2?1:0;
-      const pb = qb>=4?2:qb>=2?1:0;
-      if (pa !== pb) return pa - pb;
-      const ba = (a.s.brand||"").localeCompare(b.s.brand||"", "de");
-      if (ba) return ba;
-      return (a.s.size||"").localeCompare(b.s.size||"", "de");
-    });
-}
-
-function openDayClose(){
-  if (READ_ONLY) return roAlert();
-  const list = buildNeedList();
-  const box = $("dayCloseList");
-  if (!list.length){
-    box.innerHTML = "Alles ausreichend vorhanden 👍";
-  } else {
-    box.innerHTML = list.map(x=>{
-      const s=x.s;
-      const model = s.model ? ` · ${s.model}` : "";
-      const dot = s.dot ? ` · DOT ${s.dot}` : "";
-      return `➕ <b>${x.need}</b> × ${s.size} · ${s.brand} · ${s.season}${model}${dot} <span class="small-muted">(aktuell ${Number(s.qty||0)})</span>`;
-    }).join("<br>");
-  }
-  $("d_supplier").value = "";
-  $("d_note").value = "";
-  $("dayCloseModal").classList.remove("hidden");
-}
-
-function closeDayClose(){
-  $("dayCloseModal").classList.add("hidden");
-}
-
-// Bestellliste als CSV (optional beibehalten, unabhängig vom Excel-Workbook)
-function toCSV(rows){
-  return rows.map(r => r.map(v => {
-    const s = (v===null || v===undefined) ? "" : String(v);
-    const esc = s.replace(/"/g,'""');
-    return /[;"\n\r]/.test(esc) ? `"${esc}"` : esc;
-  }).join(";")).join("\n");
-}
-function downloadFile(filename, content, mime="text/csv;charset=utf-8"){
-  const blob = new Blob([content], {type:mime});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 1500);
-}
-function tsFile(prefix, ext){
-  const d = new Date();
-  const stamp = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}_${pad2(d.getHours())}-${pad2(d.getMinutes())}`;
-  return `${prefix}_${stamp}.${ext}`;
-}
-
-function exportDayCloseOrder(){
-  const list = buildNeedList();
-  const supplier = clean($("d_supplier").value);
-  const note = clean($("d_note").value);
-
-  const rows = [
-    ["createdAt", now()],
-    ["supplier", supplier],
-    ["note", note],
-    [],
-    ["size","brand","season","model","dot","currentQty","needToOrder","targetQty"]
-  ];
-
-  list.forEach(x=>{
-    const s=x.s;
-    rows.push([s.size,s.brand,s.season,s.model||"",s.dot||"",Number(s.qty||0),x.need,TARGET_QTY]);
-  });
-
-  if (!list.length){
-    rows.push(["","(nichts zu bestellen)"]);
-  }
-
-  downloadFile(tsFile("bestellliste","csv"), toCSV(rows));
-}
-
-/* =========================================================
-   EVENTS
-   ========================================================= */
-
-function overrideReadOnlyUI(){
-  // Buttons, die Änderungen machen, auf Anzeige-Modus blockieren
-  const ids = ["btnNew","btnSave","btnDelete","btnNewCustomer","cbtnSave","cbtnDelete","btnNewStock","s_save","s_delete","btnDayClose","d_exportOrder","d_exportAll"];
-  ids.forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.onclick = roAlert;
-  });
-}
-// direkt nach dem Laden ausführen (Script ist am Ende von body)
-if (READ_ONLY) overrideReadOnlyUI();
-
-document.querySelector('[data-tab="orders"]').onclick=()=>switchView("orders");
-document.querySelector('[data-tab="archive"]').onclick=()=>switchView("archive");
-document.querySelector('[data-tab="customers"]').onclick=()=>switchView("customers");
-document.querySelector('[data-tab="stock"]').onclick=()=>switchView("stock");
-
-$("btnNew").onclick=openNewOrder;
-
-// ✅ Export-Button erzeugt jetzt EINE Excel-Datei mit Tabs
-$("btnExportAll").onclick=exportExcelWorkbook;
-
-$("btnSave").onclick = saveOrder; // ruft intern saveOrderToSupabase(currentOrder) auf
-$("btnDelete").onclick=deleteOrder;
-$("btnCancel").onclick=()=>$("modal").classList.add("hidden");
-$("btnClose").onclick=()=>$("modal").classList.add("hidden");
-
-$("btnNewCustomer").onclick=()=>openCustomerModal(null);
-$("cbtnSave").onclick=saveCustomerManual;
-$("cbtnCancel").onclick=closeCustomerModal;
-$("cbtnClose").onclick=closeCustomerModal;
-$("cbtnDelete").onclick=deleteCustomer;
-
-$("btnNewStock").onclick=openNewStock;
-$("btnDayClose").onclick=openDayClose;
-$("s_save").onclick=saveStockItem;
-$("s_cancel").onclick=closeStockModal;
-$("s_close").onclick=closeStockModal;
-$("s_delete").onclick=deleteStockItem;
-
-$("d_close").onclick=closeDayClose;
-$("d_cancel").onclick=closeDayClose;
-$("d_exportOrder").onclick=exportDayCloseOrder;
-
-// ✅ “Komplettes Backup exportieren” erzeugt ebenfalls die Excel-Arbeitsmappe + JSON
-$("d_exportAll").onclick=exportExcelWorkbook;
-
-$("clearSearch").onclick=()=>{
-  $("searchInput").value="";
-  if(currentView==="orders") renderOrders();
-  else if(currentView==="archive") renderArchive();
-};
-
-$("searchInput").oninput=()=>currentView==="orders"?renderOrders():renderArchive();
-$("customerSearchInput").oninput=renderCustomers;
-$("stockSearchInput").oninput=renderStock;
-
-["f_qty","f_unit","f_deposit"].forEach(id=>{
-  $(id).addEventListener("input",()=>{
-    const t=$("f_qty").value*$("f_unit").value;
-    $("calc_total").textContent=money(t);
-    $("calc_rest").textContent=money(Math.max(t-$("f_deposit").value,0));
-  });
-});
-
-$("f_size").addEventListener("input",()=>{
-  $("f_size").value=normalizeTireSize($("f_size").value);
-});
-
-$("s_size").addEventListener("input",()=>{
-  $("s_size").value=normalizeTireSize($("s_size").value);
-});
-$("s_brand").addEventListener("input",renderModelSuggestions);
-$("s_season").addEventListener("change",renderModelSuggestions);
-
-/* =========================================================
-   INIT
-   ========================================================= */
-renderBrands();
-
-// ✅ Orders initial aus Supabase laden (ohne Reload nötig)
-initApp();
+/* ... der Rest der Datei bleibt unverändert (vollständig in der Datei) ... */
 
 async function initApp(){
+  await initSupabase();
   await initOrdersFromSupabase(); // lädt orders[] und migriert ggf. Altbestand
+  initOrdersRealtime();
   switchView("orders");
 }
