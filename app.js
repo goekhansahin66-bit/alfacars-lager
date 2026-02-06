@@ -780,8 +780,6 @@ function buildOrderCard(o,c,withStatus){
   if (withStatus){
     card.querySelector("[data-next]").onclick=e=>{
       if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
       e.stopPropagation();
       const prev = o.status;
       o.status = o.status==="Bestellt"?"Anrufen":o.status==="Anrufen"?"Erledigt":ARCHIVE_STATUS;
@@ -792,8 +790,6 @@ function buildOrderCard(o,c,withStatus){
       });
     };
     card.querySelector("[data-prev]").onclick=e=>{
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
-      if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
       if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
       e.stopPropagation();
       const prev = o.status;
@@ -1542,7 +1538,8 @@ if (READ_ONLY) overrideReadOnlyUI();
   $("searchInput").value="";
   if(currentView==="orders") renderOrders();
   else if(currentView==="archive") renderArchive();
-};
+  };
+})();
 
 (()=>{ const el=$("searchInput"); if(el) el.oninput=()=>currentView==="orders"?renderOrders():renderArchive(); else console.warn("⚠️ Element fehlt: searchInput"); })();
 (()=>{ const el=$("customerSearchInput"); if(el) el.oninput=renderCustomers; else console.warn("⚠️ Element fehlt: customerSearchInput"); })();
