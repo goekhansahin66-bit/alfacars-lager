@@ -98,7 +98,7 @@ async function initOrdersFromSupabase(){
     .from(SUPABASE_ORDERS_TABLE)
     .select(`
   *,
-  customers (
+  customers:customerid (
     id,
     name,
     phone,
@@ -106,6 +106,7 @@ async function initOrdersFromSupabase(){
     email
   )
 `)
+
 
 
     .order("created_at", { ascending: false }); // FIX: created_at statt created
