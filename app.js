@@ -48,7 +48,7 @@ function mapOrderForDb(o){
   return {
     id: o.id,
     status: o.status,
-    customer_id: o.customerId,
+    customerid: o.customerId,
     size: o.size,
     brand: o.brand,
     season: o.season,
@@ -70,10 +70,17 @@ function normalizeOrderFromDb(row) {
       ? row.created
       : (row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "");
 
+  const customerId =
+    row.customerid ??
+    row.customer_id ??
+    row.customerId ??
+    null;
+
   const customer = row.customers || {};
 
   return {
     ...row,
+    customerId,
     created: createdDisplay,
 
     // ✅ Kunden-Daten für UI bereitstellen
@@ -127,28 +134,69 @@ async function saveOrderToSupabase(currentOrder){
     alert("Supabase nicht verbunden");
     return { ok:false, error:"Supabase not connected" };
   }
-// 🧑 Kunde speichern (saubere Implementierung)
-const customerPayload = {
-  name: currentOrder.customerName?.trim() || null,
-  phone: currentOrder.customerPhone?.trim() || null,
-  license_plate: currentOrder.licensePlate?.trim() || null,
-  email: currentOrder.customerEmail?.trim() || null
-};
+// 🧑 Kunde in Supabase sicherstellen
+  // - Wenn currentOrder.customerId bereits eine UUID ist: nutzen wir sie.
+  // - Sonst (Legacy/localStorage): wir suchen per phone/email/plate und legen sonst neu an.
+  const customerPayload = {
+    name: currentOrder.customerName?.trim() || null,
+    phone: currentOrder.customerPhone?.trim() || null,
+    license_plate: currentOrder.licensePlate?.trim() || null,
+    email: currentOrder.customerEmail?.trim() || null
+  };
 
-const { data: customer, error: customerError } = await supabaseClient
-  .from("customers")
-  .insert(customerPayload)
-  .select()
-  .single();
+  const looksUuid =
+    typeof currentOrder.customerId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentOrder.customerId);
 
-if (customerError) {
-  console.error("❌ Fehler beim Speichern des Kunden:", customerError.message);
-  alert("Fehler beim Speichern des Kunden");
-  return { ok: false, error: customerError.message };
-}
+  let customer = null;
+
+  if (looksUuid){
+    customer = { id: currentOrder.customerId };
+  } else {
+    // 1) Versuche vorhandenen Kunden zu finden (verhindert Duplikate)
+    const orParts = [];
+    if (customerPayload.phone) orParts.push(`phone.eq.${customerPayload.phone}`);
+    if (customerPayload.email) orParts.push(`email.eq.${customerPayload.email}`);
+    if (customerPayload.license_plate) orParts.push(`license_plate.eq.${customerPayload.license_plate}`);
+
+    if (orParts.length){
+      const { data: found, error: findError } = await supabaseClient
+        .from("customers")
+        .select("id,name,phone,license_plate,email")
+        .or(orParts.join(","))
+        .limit(1);
+
+      if (findError) {
+        console.warn("⚠️ Kunde-Suche fehlgeschlagen (wird neu angelegt):", findError.message);
+      } else if (Array.isArray(found) && found.length){
+        customer = found[0];
+      }
+    }
+
+    // 2) Falls nicht gefunden: neu anlegen
+    if (!customer){
+      const { data: inserted, error: customerError } = await supabaseClient
+        .from("customers")
+        .insert(customerPayload)
+        .select()
+        .single();
+
+      if (customerError) {
+        console.error("❌ Fehler beim Speichern des Kunden:", customerError.message);
+        alert("Fehler beim Speichern des Kunden");
+        return { ok: false, error: customerError.message };
+      }
+
+      customer = inserted;
+    }
+  }
+
+  // ✅ Bestellung muss auf die UUID zeigen
+  currentOrder.customerId = customer.id;
 
   const payload = mapOrderForDb(currentOrder);
-payload.customerid = customer.id;
+  payload.customerid = customer.id;
+  delete payload.customer_id;
 
 
   // Upsert: Insert bei Neu, Update bei bestehender ID
@@ -508,6 +556,62 @@ function findCustomerById(id){
   return customers.find(c => c.id === id) || null;
 }
 
+// ✅ NEU: Kunde für eine Order auflösen
+// - Legacy: localStorage-Kunden (Number-IDs)
+// - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
+
+
+// ✅ NEU: Kunde für eine Order auflösen
+// - Legacy: localStorage-Kunden (Number-IDs)
+// - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
+
+
+// ✅ NEU: Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  // 1) Legacy/localStorage
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  // 2) Supabase JOIN-Felder aus normalizeOrderFromDb()
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
+
 function exportExcelWorkbook(){
   // ===== SHEET 1: BESTELLUNGEN (inkl. Status, Filterbar) =====
   const ordersRows = [
@@ -530,7 +634,7 @@ function exportExcelWorkbook(){
   });
 
   sortedOrders.forEach(o=>{
-    const c = findCustomerById(o.customerId) || {};
+    const c = resolveCustomerForOrder(o) || {};
     const total = (Number(o.qty||0) * Number(o.unit||0));
     const rest = Math.max(total - Number(o.deposit||0), 0);
 
@@ -738,7 +842,7 @@ function renderOrders(){
   orders.forEach(o=>{
     if (o.status === ARCHIVE_STATUS) return;
 
-    const c = findCustomerById(o.customerId);
+    const c = resolveCustomerForOrder(o);
     const blob = [c?.name,c?.phone,c?.email,c?.plate,c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
     if (q && !blob.includes(q)) return;
 
@@ -762,7 +866,7 @@ function renderArchive(){
   orders.forEach((o,i)=>{
     if (o.status !== ARCHIVE_STATUS) return;
 
-    const c = findCustomerById(o.customerId);
+    const c = resolveCustomerForOrder(o);
     const blob = [c?.name,c?.phone,c?.email,c?.plate,c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
     if (q && !blob.includes(q)) return;
 
@@ -919,7 +1023,7 @@ function renderReachability(){
 
   orders.forEach(o=>{
     if (o.status === ARCHIVE_STATUS) return;
-    const c = findCustomerById(o.customerId) || {};
+    const c = resolveCustomerForOrder(o) || {};
     const city = clean(c.city) || "Unbekannt";
     const src = clean(o.orderSource || c.source) || "Unbekannt";
 
@@ -1011,9 +1115,9 @@ function openEditOrder(id){
     alert("Bestellung nicht gefunden. Bitte Seite neu öffnen.");
     return;
   }
-  const c = findCustomerById(o.customerId);
+  const c = resolveCustomerForOrder(o);
   editingOrderId=id;
-  preselectCustomerId = c?.id || null;
+  preselectCustomerId = (c && typeof c.id === "number") ? c.id : null;
 
   $("modalTitle").textContent="Bestellung bearbeiten";
   $("btnDelete").classList.remove("hidden");
@@ -1065,6 +1169,10 @@ async function saveOrder(){
 
   const base = {
     customerId: cust.id,
+    customerName: cust.name,
+    customerPhone: cust.phone,
+    customerEmail: cust.email,
+    licensePlate: cust.plate,
     size,
     brand: $("f_brand").value,
     season: $("f_season").value,
