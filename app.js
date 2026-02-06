@@ -62,13 +62,28 @@ function mapOrderForDb(o){
 }
 
 // ✅ DB → UI Normalisierung (created Feld für Anzeige beibehalten, aber Quelle ist created_at)
-function normalizeOrderFromDb(row){
+function normalizeOrderFromDb(row) {
   if (!row || typeof row !== "object") return row;
+
   const createdDisplay =
-    (row.created && String(row.created).trim()) ? row.created :
-    (row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "");
-  return { ...row, created: createdDisplay };
+    (row.created && String(row.created).trim())
+      ? row.created
+      : (row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "");
+
+  const customer = row.customers || {};
+
+  return {
+    ...row,
+    created: createdDisplay,
+
+    // ✅ Kunden-Daten für UI bereitstellen
+    customerName: customer.name || "Unbekannter Kunde",
+    customerPhone: customer.phone || "",
+    licensePlate: customer.license_plate || "",
+    customerEmail: customer.email || ""
+  };
 }
+
 
 
 async function initOrdersFromSupabase(){
