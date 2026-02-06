@@ -81,7 +81,18 @@ async function initOrdersFromSupabase(){
   // 1) Orders aus Supabase laden
   const { data, error } = await supabaseClient
     .from(SUPABASE_ORDERS_TABLE)
-    .select("*")
+    .select(`
+  *,
+  customers (
+    id,
+    name,
+    phone,
+    license_plate,
+    email
+  )
+`)
+
+
     .order("created_at", { ascending: false }); // FIX: created_at statt created
 
   if (error){
