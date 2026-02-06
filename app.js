@@ -90,15 +90,47 @@ function normalizeOrderFromDb(row) {
     customerEmail: customer.email || ""
   };
 }
+async function initStockFromSupabase() {
+  if (!supabaseClient) {
+    console.warn("⚠️ Supabase nicht verbunden – Lager nicht geladen.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("stock")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("❌ Fehler beim Laden des Lagers:", error.message);
+    return;
+  }
+
+  // 📱 Handy = Supabase, 🖥️ PC = localStorage
+if (READ_ONLY) {
+  stock = Array.isArray(data)
+    ? data.map(s => ({
+        ...s,
+        created: s.created_at
+          ? new Date(s.created_at).toLocaleString("de-DE")
+          : ""
+      }))
+    : [];
+
+  // 🔥 Lager-View aktivieren
+  switchView("stock");
+}
+
+
 
 
 
 async function initOrdersFromSupabase(){
-  if (!supabaseClient){
+ if (!supabaseClient){
     console.warn("⚠️ Supabase nicht verbunden – Orders können nicht geladen werden.");
     orders = [];
     return;
-  }
+  
 
   // 1) Orders aus Supabase laden
   const { data, error } = await supabaseClient
