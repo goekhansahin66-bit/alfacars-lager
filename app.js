@@ -121,7 +121,7 @@ if (customerError) {
 }
 
   const payload = mapOrderForDb(currentOrder);
-payload.customerId = customer.id;
+payload.customerid = customer.id;
 
 
   // Upsert: Insert bei Neu, Update bei bestehender ID
