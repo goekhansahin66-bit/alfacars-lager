@@ -1039,7 +1039,6 @@ async function saveOrder(){
     currentOrder = { ...existing, ...base };
   } else {
     currentOrder = {
-      id: Date.now(),          // bleibt wie vorher (keine Features / IDs ändern)
       created: now(),
       status: "Bestellt",
       ...base
