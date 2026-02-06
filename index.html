@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Alfacars – Reifenbestellung</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="shell">
+
+    <!-- ================= TOPBAR ================= -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">Alfacars</div>
+        <div class="brand-sub">Reifenbestellung · Werkstatt</div>
+      </div>
+
+      <div class="top-actions">
+        <div class="search">
+          <span class="icon">⌕</span>
+          <input id="searchInput" type="text"
+                 placeholder="Suche: Kunde, Telefon, Kennzeichen, Größe, Marke…" />
+          <button id="clearSearch" class="ghost">×</button>
+        </div>
+
+        <button id="btnNew" class="btn primary">+ Neue Bestellung</button>
+        <button id="btnExportAll" class="btn soft">⬇︎ Export (Excel/CSV)</button>
+      </div>
+    </header>
+
+    <!-- ================= NAVIGATION ================= -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="orders">Bestellungen</button>
+      <button class="tab" data-tab="archive">Archiv</button>
+      <button class="tab" data-tab="customers">Kunden</button>
+      <button class="tab" data-tab="stock">Lager</button>
+    </nav>
+
+    <!-- ================= BESTELLUNGEN ================= -->
+    <main class="board" id="board">
+      <section class="column">
+        <div class="col-head">
+          <div class="col-title"><span class="dot dot-grey"></span>Bestellt</div>
+          <div class="col-count" id="count-Bestellt">0</div>
+        </div>
+        <div class="col-body" id="col-Bestellt"></div>
+      </section>
+
+      <section class="column">
+        <div class="col-head">
+          <div class="col-title"><span class="dot dot-yellow"></span>Anrufen</div>
+          <div class="col-count" id="count-Anrufen">0</div>
+        </div>
+        <div class="col-body" id="col-Anrufen"></div>
+      </section>
+
+      <section class="column">
+        <div class="col-head">
+          <div class="col-title"><span class="dot dot-green"></span>Erledigt</div>
+          <div class="col-count" id="count-Erledigt">0</div>
+        </div>
+        <div class="col-body" id="col-Erledigt"></div>
+      </section>
+    </main>
+
+    <!-- ================= ARCHIV ================= -->
+    <main class="board hidden" id="archiveBoard">
+      <section class="column" style="grid-column:1 / -1">
+        <div class="col-head">
+          <div class="col-title">📦 Archiv</div>
+          <div class="col-count" id="count-Archiv">0</div>
+        </div>
+        <div class="col-body" id="col-Archiv"></div>
+      </section>
+    </main>
+
+    <!-- ================= KUNDEN ================= -->
+    <main class="board hidden" id="customerBoard">
+      <section class="column" style="grid-column:1 / -1">
+        <div class="col-head">
+          <div class="col-title">👤 Kunden</div>
+          <button id="btnNewCustomer" class="btn soft">+ Neuer Kunde</button>
+        </div>
+
+        <div class="col-body">
+          <div class="search" style="max-width:420px;margin-bottom:14px">
+            <span class="icon">⌕</span>
+            <input id="customerSearchInput" type="text"
+                   placeholder="Suche: Name, Telefon, E-Mail, Kennzeichen" />
+          </div>
+
+          <div id="customerList"></div>
+
+          <div class="section-title" style="margin-top:18px">📈 Reichweite / Woher kommen Bestellungen?</div>
+          <div class="note list" id="reachBox">Noch keine Daten.</div>
+
+        </div>
+      </section>
+    </main>
+
+    <!-- ================= LAGER ================= -->
+    <main class="board hidden" id="stockBoard">
+      <section class="column" style="grid-column:1 / -1">
+        <div class="col-head">
+          <div class="col-title">📦 Lager</div>
+          <button id="btnNewStock" class="btn soft">+ Neuer Eintrag</button>
+          <button id="btnDayClose" class="btn warn">🧾 Tagesabschluss / Bestellen</button>
+        </div>
+
+        <div class="col-body">
+          <div class="search" style="max-width:520px;margin-bottom:14px">
+            <span class="icon">⌕</span>
+            <input id="stockSearchInput" type="text"
+                   placeholder="Suche: Größe, Marke, Modell, DOT, Saison" />
+          </div>
+
+          <div class="section-title">Bestand</div>
+          <div id="stockList"></div>
+
+          <div class="section-title" style="margin-top:18px;display:flex;align-items:center;gap:10px">
+            Was muss ich bestellen? <span class="pill small grey">Einträge <span id="stockNeedCount">0</span></span>
+          </div>
+          <div class="note list" id="stockNeedBox">Alles ausreichend vorhanden 👍</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ================= BESTELL-MODAL ================= -->
+    <div class="modal hidden" id="modal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title" id="modalTitle">Neue Bestellung</div>
+            <div class="modal-sub">Kunde wird automatisch erkannt (Telefon / E‑Mail / Kennzeichen)</div>
+          </div>
+          <button id="btnClose" class="ghost big">×</button>
+        </div>
+
+        <div class="form-grid">
+          <div class="field"><label>Name</label><input id="f_name"></div>
+          <div class="field"><label>Telefon *</label><input id="f_phone" placeholder="oder E‑Mail"></div>
+          <div class="field"><label>E-Mail *</label><input id="f_email" type="email" placeholder="oder Telefon"></div>
+          <div class="field"><label>Kennzeichen</label><input id="f_plate"></div>
+          <div class="field"><label>Straße + Nr.</label><input id="f_street" placeholder="z.B. Musterstr. 12"></div>
+          <div class="field"><label>PLZ</label><input id="f_zip" placeholder="z.B. 10115"></div>
+          <div class="field"><label>Ort</label><input id="f_city" placeholder="z.B. Berlin"></div>
+          <div class="field"><label>Herkunft / Kanal</label>
+            <select id="f_source">
+              <option value="">Bitte wählen…</option>
+              <option>Telefon</option>
+              <option>WhatsApp</option>
+              <option>Website</option>
+              <option>Walk‑In</option>
+              <option>Empfehlung</option>
+              <option>Sonstiges</option>
+            </select>
+          </div>
+
+
+          <div class="field">
+            <label>Reifengröße</label>
+            <input id="f_size">
+            <div class="hint">Automatische Formatierung</div>
+          </div>
+
+          <div class="field"><label>Marke</label><input id="f_brand" list="brandList"><datalist id="brandList"></datalist></div>
+          <div class="field"><label>Saison</label>
+            <select id="f_season">
+              <option value="">Bitte wählen…</option>
+              <option>Sommer</option>
+              <option>Winter</option>
+              <option>Allwetter</option>
+            </select>
+          </div>
+
+          <div class="field"><label>Bestellquelle (für Auswertung)</label><input id="f_orderSource" placeholder="z.B. eBay, Mobile.de, Empfehlung"></div>
+
+          <div class="field"><label>Menge</label><input id="f_qty" type="number" value="4"></div>
+          <div class="field"><label>Preis pro Stück (€)</label><input id="f_unit" type="number" step="0.01"></div>
+          <div class="field"><label>Anzahlung (€)</label><input id="f_deposit" type="number" step="0.01"></div>
+          <div class="field"><label>Felgen</label><input id="f_rims"></div>
+
+          <div class="field span-2"><label>Notiz</label><textarea id="f_note" rows="3"></textarea></div>
+        </div>
+
+        <div class="calc-row">
+          <div class="calc"><div class="calc-label">Gesamtpreis</div><div class="calc-value" id="calc_total">0,00 €</div></div>
+          <div class="calc"><div class="calc-label">Restbetrag</div><div class="calc-value" id="calc_rest">0,00 €</div></div>
+        </div>
+
+        <div class="modal-actions">
+          <div class="left-actions"><button id="btnDelete" class="btn danger hidden">Löschen</button></div>
+          <div class="right-actions">
+            <button id="btnCancel" class="btn soft">Abbrechen</button>
+            <button id="btnSave" class="btn primary">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= KUNDEN-MODAL ================= -->
+    <div class="modal hidden" id="customerModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title" id="customerModalTitle">Neuer Kunde</div>
+            <div class="modal-sub">Telefon oder E‑Mail ist Pflicht</div>
+          </div>
+          <button id="cbtnClose" class="ghost big">×</button>
+        </div>
+
+        <div class="form-grid">
+          <div class="field"><label>Name</label><input id="c_name"></div>
+          <div class="field"><label>Telefon *</label><input id="c_phone" placeholder="oder E‑Mail"></div>
+          <div class="field"><label>E‑Mail *</label><input id="c_email" type="email" placeholder="oder Telefon"></div>
+          <div class="field"><label>Kennzeichen</label><input id="c_plate"></div>
+          <div class="field"><label>Straße + Nr.</label><input id="c_street"></div>
+          <div class="field"><label>PLZ</label><input id="c_zip"></div>
+          <div class="field"><label>Ort</label><input id="c_city"></div>
+          <div class="field"><label>Herkunft / Kanal</label>
+            <select id="c_source">
+              <option value="">Bitte wählen…</option>
+              <option>Telefon</option>
+              <option>WhatsApp</option>
+              <option>Website</option>
+              <option>Walk‑In</option>
+              <option>Empfehlung</option>
+              <option>Sonstiges</option>
+            </select>
+          </div>
+
+        </div>
+
+        <div class="modal-actions">
+          <div class="left-actions"><button id="cbtnDelete" class="btn danger">Löschen</button></div>
+          <div class="right-actions">
+            <button id="cbtnCancel" class="btn soft">Abbrechen</button>
+            <button id="cbtnSave" class="btn primary">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= LAGER-MODAL ================= -->
+    <div class="modal hidden" id="stockModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title" id="stockModalTitle">Neuer Lagereintrag</div>
+            <div class="modal-sub">Ampel: ≥4 grün · 2–3 gelb · 0–1 rot · Sollbestand = 4</div>
+          </div>
+          <button id="s_close" class="ghost big">×</button>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Reifengröße</label>
+            <input id="s_size" placeholder="z.B. 205/55 R16">
+            <div class="hint">Automatische Formatierung</div>
+          </div>
+
+          <div class="field">
+            <label>Marke</label>
+            <input id="s_brand" list="s_brandList" placeholder="z.B. Berlin Tires">
+            <datalist id="s_brandList"></datalist>
+          </div>
+
+          <div class="field">
+            <label>Saison</label>
+            <select id="s_season">
+              <option value="">Bitte wählen…</option>
+              <option>Sommer</option>
+              <option>Winter</option>
+              <option>Allwetter</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Modell (optional)</label>
+            <input id="s_model" list="modelList" placeholder="z.B. CrossClimate">
+            <datalist id="modelList"></datalist>
+            <div class="hint">Vorschläge abhängig von Marke + Saison</div>
+          </div>
+
+          <div class="field">
+            <label>DOT (optional)</label>
+            <input id="s_dot" placeholder="z.B. 2323">
+          </div>
+
+          <div class="field">
+            <label>Menge</label>
+            <input id="s_qty" type="number" min="0" step="1" value="4">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <div class="left-actions"><button id="s_delete" class="btn danger hidden">Löschen</button></div>
+          <div class="right-actions">
+            <button id="s_cancel" class="btn soft">Abbrechen</button>
+            <button id="s_save" class="btn primary">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
+    <!-- ================= TAGESABSCHLUSS / BESTELLUNG ================= -->
+    <div class="modal hidden" id="dayCloseModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <div class="modal-title">🧾 Tagesabschluss / Bestellen</div>
+            <div class="modal-sub">Liste basiert auf Lager-Sollbestand (4 Stück). Du kannst exportieren (Excel/CSV) + vollständiges Backup.</div>
+          </div>
+          <button id="d_close" class="ghost big">×</button>
+        </div>
+
+        <div class="modal-foot">
+          <div class="form-grid" style="padding-top:12px">
+            <div class="field"><label>Lieferant (optional)</label><input id="d_supplier" placeholder="z.B. Großhandel XY"></div>
+            <div class="field"><label>Notiz (optional)</label><input id="d_note" placeholder="z.B. Express, Abholung …"></div>
+          </div>
+
+          <div class="section-title" style="margin:6px 0 10px 0">Bestellliste</div>
+          <div class="note list" id="dayCloseList">—</div>
+
+          <div class="modal-actions" style="padding:12px 0 0 0;border-top:0">
+            <div class="left-actions">
+              <button id="d_exportOrder" class="btn primary">⬇︎ Bestellliste exportieren</button>
+            </div>
+            <div class="right-actions">
+              <button id="d_exportAll" class="btn soft">⬇︎ Komplettes Backup exportieren</button>
+              <button id="d_cancel" class="btn soft">Schließen</button>
+            </div>
+          </div>
+
+          <div class="foot-note" style="margin-top:10px">
+            Tipp: Export-Dateien am besten täglich in einem Ordner speichern (Excel öffnet CSV direkt).
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <footer class="foot">
+      <div class="muted">Online · Autosave · Bestellungen in Supabase</div>
+    </footer>
+
+  </div>
+<!-- Supabase Client (NEU) -->
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+<!-- Deine App -->
+<script src="app.fixed.js"></script>
+
+</body>
+</html>
+
