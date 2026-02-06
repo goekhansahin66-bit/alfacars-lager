@@ -48,7 +48,7 @@ function mapOrderForDb(o){
   return {
     id: o.id,
     status: o.status,
-    customerId: o.customerId,
+    customer_id: o.customerId,
     size: o.size,
     brand: o.brand,
     season: o.season,
