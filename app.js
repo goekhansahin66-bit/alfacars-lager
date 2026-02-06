@@ -100,8 +100,29 @@ async function saveOrderToSupabase(currentOrder){
     alert("Supabase nicht verbunden");
     return { ok:false, error:"Supabase not connected" };
   }
+// 🧑 Kunde speichern (saubere Implementierung)
+const customerPayload = {
+  name: currentOrder.customerName?.trim() || null,
+  phone: currentOrder.customerPhone?.trim() || null,
+  license_plate: currentOrder.licensePlate?.trim() || null,
+  email: currentOrder.customerEmail?.trim() || null
+};
+
+const { data: customer, error: customerError } = await supabaseClient
+  .from("customers")
+  .insert(customerPayload)
+  .select()
+  .single();
+
+if (customerError) {
+  console.error("❌ Fehler beim Speichern des Kunden:", customerError.message);
+  alert("Fehler beim Speichern des Kunden");
+  return { ok: false, error: customerError.message };
+}
 
   const payload = mapOrderForDb(currentOrder);
+payload.customerId = customer.id;
+
 
   // Upsert: Insert bei Neu, Update bei bestehender ID
   const { data, error } = await supabaseClient
