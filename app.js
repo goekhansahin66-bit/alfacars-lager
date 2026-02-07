@@ -1780,6 +1780,7 @@ if (READ_ONLY) overrideReadOnlyUI();
   else console.warn("⚠️ Element fehlt: s_season");
 })();
 
+})(); // 🔒 ABSCHLUSS ALLER OFFENEN IIFEs (Sicherheits-Fix)
 
 /* =========================================================
    INIT
