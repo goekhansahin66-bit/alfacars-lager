@@ -1801,19 +1801,22 @@ if (READ_ONLY) overrideReadOnlyUI();
   else if(currentView==="archive") renderArchive();
   };
 })();
+const el = $("searchInput");
 
-(()=>{ const el=$("searchInput"); if(el) el.oninput=()=>currentView==="orders"?renderOrders():renderArchive(); else console.warn("⚠️ Element fehlt: searchInput"); })();
-(()=>{ const el=$("customerSearchInput"); if(el) el.oninput=renderCustomers; else console.warn("⚠️ Element fehlt: customerSearchInput"); })();
+if (!el) {
+  console.warn("⚠️ Element fehlt: searchInput");
+  return;
+}
 
-  el.oninput = () => {
-    if (currentView === "orders") {
-      renderOrders();
-    } else if (currentView === "archive") {
-      renderArchive();
-    }
-    // 🔴 bewusst KEIN else → Lager & Kunden NICHT anfassen
-  };
-})();
+el.oninput = () => {
+  if (currentView === "orders") {
+    renderOrders();
+  } else if (currentView === "archive") {
+    renderArchive();
+  }
+  // bewusst KEIN else → Lager & Kunden NICHT anfassen
+};
+
 
  else console.warn("⚠️ Element fehlt: stockSearchInput"); })();
 
