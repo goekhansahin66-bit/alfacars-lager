@@ -62,6 +62,34 @@ function mapOrderForDb(o){
 }
 
 // ✅ DB → UI Normalisierung (created Feld für Anzeige beibehalten, aber Quelle ist created_at)
+
+/* ================================
+   GLOBAL FIXES – CUSTOMER CACHE
+   ================================ */
+
+// Global customer cache used by normalizeOrderFromDb
+let customersById = new Map();
+
+function rebuildCustomersIndex(){
+  customersById = new Map();
+  (customers || []).forEach(c => {
+    if (c && c.id) customersById.set(c.id, c);
+  });
+}
+
+// Used by Supabase save + load flows
+function upsertCustomerInMemory(customer){
+  if (!customer || !customer.id) return;
+  const existing = customers.find(c => c.id === customer.id);
+  if (existing){
+    Object.assign(existing, customer);
+  } else {
+    customers.unshift(customer);
+  }
+  customersById.set(customer.id, customer);
+}
+
+
 function normalizeOrderFromDb(row) {
   // row may come with or without joined customer object.
   const cid = row ? (row.customerid || row.customer_id || row.customerId) : null;
@@ -125,7 +153,7 @@ async function initOrdersFromSupabase() {
       const { data: cdata, error: cerr } = await supabaseClient
         .from("customers")
         .select("id,name,phone,license_plate,email")
-        .in("id", ids);
+        .in("id", ids.filter(id => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id)));
 
       if (!cerr && Array.isArray(cdata)) {
         cdata.forEach(upsertCustomerInMemory);
@@ -373,31 +401,6 @@ const TARGET_QTY = 4; // Sollbestand fürs Lager
 
 // ⚠️ Orders werden NICHT mehr aus localStorage geladen.
 //    Quelle der Wahrheit ist Supabase.
-
-/* ================================
-   GLOBAL CUSTOMER CACHE (FIX)
-   ================================ */
-let customersById = new Map();
-
-function rebuildCustomersIndex(){
-  customersById = new Map();
-  (customers || []).forEach(c => {
-    if (c && c.id) customersById.set(c.id, c);
-  });
-}
-
-// Minimal in-memory upsert used by Supabase flows
-function upsertCustomerInMemory(customer){
-  if (!customer || !customer.id) return;
-  const existing = customers.find(c => c.id === customer.id);
-  if (existing){
-    Object.assign(existing, customer);
-  } else {
-    customers.unshift(customer);
-  }
-  customersById.set(customer.id, customer);
-}
-
 let orders = [];
 let customers = JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "[]");
 let stock = JSON.parse(localStorage.getItem(STOCK_KEY) || "[]");
