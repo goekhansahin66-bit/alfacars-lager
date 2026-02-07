@@ -74,6 +74,7 @@ function normalizeOrderFromDb(row) {
   return {
     id: row.id,
     status: row.status || "ordered",
+    created: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
     createdAt: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
     customerId: cid || "",
     customerName: customer.name || row.customername || row.customer_name || "Unbekannter Kunde",
@@ -89,7 +90,7 @@ function normalizeOrderFromDb(row) {
     deposit: Number(row.deposit || 0),
     rims: row.rims || "",
     note: row.note || "",
-    orderSource: row.order_source || "supabase"
+    orderSource: row.orderSource || row.order_source || "supabase"
   };
 }
 
@@ -609,39 +610,13 @@ function findCustomerById(id){
 // ✅ NEU: Kunde für eine Order auflösen
 // - Legacy: localStorage-Kunden (Number-IDs)
 // - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
-function resolveCustomerForOrder(o){
-  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
 
-  const local = id ? findCustomerById(id) : null;
-  if (local) return local;
-
-  return {
-    id,
-    name: o?.customerName || "Unbekannter Kunde",
-    phone: o?.customerPhone || "",
-    email: o?.customerEmail || "",
-    plate: o?.licensePlate || ""
-  };
-}
 
 
 // ✅ NEU: Kunde für eine Order auflösen
 // - Legacy: localStorage-Kunden (Number-IDs)
 // - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
-function resolveCustomerForOrder(o){
-  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
 
-  const local = id ? findCustomerById(id) : null;
-  if (local) return local;
-
-  return {
-    id,
-    name: o?.customerName || "Unbekannter Kunde",
-    phone: o?.customerPhone || "",
-    email: o?.customerEmail || "",
-    plate: o?.licensePlate || ""
-  };
-}
 
 
 // ✅ NEU: Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
@@ -1349,6 +1324,46 @@ function deleteCustomer(){
   renderCustomers();
 }
 
+
+/* =========================================================
+   SUPABASE – STOCK (READ ONLY / Mobile)
+   - Mobile lädt Lager direkt aus Supabase (Anzeige-Modus)
+   - PC nutzt aktuell weiterhin localStorage für Lager (Editing)
+   ========================================================= */
+
+async function loadStockFromSupabase() {
+  if (!READ_ONLY) return;
+
+  if (!supabaseClient) {
+    console.warn("Supabase nicht verbunden – Lager kann nicht geladen werden");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("stock")
+    .select("*");
+
+  if (error) {
+    console.error("Fehler beim Laden des Lagers:", error.message);
+    return;
+  }
+
+  stock = (data || []).map(row => ({
+    id: row.id,
+    created: row.created_at
+      ? new Date(row.created_at).toLocaleString("de-DE")
+      : "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    dot: row.dot || "",
+    qty: Number(row.qty || 0)
+  }));
+
+  renderStock();
+}
+
 /* =========================================================
    LAGER – Bestand
    ========================================================= */
@@ -1779,10 +1794,15 @@ if (READ_ONLY) overrideReadOnlyUI();
    ========================================================= */
 renderBrands();
 
-// ✅ Orders initial aus Supabase laden (ohne Reload nötig)
-initApp();
+async function initApp() {
+  await initOrdersFromSupabase();
 
-async function initApp(){
-  await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
+  if (READ_ONLY) {
+    await loadStockFromSupabase();
+  }
+
   switchView("orders");
 }
+
+initApp();
+
