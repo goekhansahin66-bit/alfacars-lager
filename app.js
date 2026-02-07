@@ -442,7 +442,10 @@ if (READ_ONLY){
 // ⚠️ DEPRECATED: Orders werden ausschließlich in Supabase gespeichert.
 function saveOrders() { /* no-op */ }
 function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); }
-function saveStock() { localStorage.setItem(STOCK_KEY, JSON.stringify(stock)); }
+function saveStock() {
+  localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
+  syncStockToSupabase(); // 🔄 AUTO-SYNC
+}
 function saveAll(){ saveOrders(); saveCustomers(); saveStock(); }
 
 function now() { return new Date().toLocaleString("de-DE"); }
@@ -1380,6 +1383,31 @@ stock = []; // 🔴 WICHTIG: alten Zustand löschen
     return;
   }
 
+
+async function syncStockToSupabase() {
+  if (READ_ONLY) return;
+  if (!supabaseClient) return;
+
+  const rows = stock.map(s => ({
+    id: s.id,
+    size: s.size,
+    brand: s.brand,
+    season: s.season,
+    model: s.model || null,
+    dot: s.dot || null,
+    qty: Number(s.qty || 0)
+  }));
+
+  const { error } = await supabaseClient
+    .from("stock")
+    .upsert(rows, { onConflict: "id" });
+
+  if (error) {
+    console.error("❌ Lager Sync Fehler:", error.message);
+  } else {
+    console.log("🔄 Lager erfolgreich nach Supabase synchronisiert");
+  }
+}
   const { data, error } = await supabaseClient
     .from("stock")
     .select("*");
