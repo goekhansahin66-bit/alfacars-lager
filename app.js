@@ -799,14 +799,14 @@ function switchView(view) {
   if (view === "archive") renderArchive();
   if (view === "customers") renderCustomers();
 
-  // ✅ EINZIGER FIX: Lager auf Handy aus Supabase laden
-if (view === "stock") {
-  if (READ_ONLY) {
-    loadStockFromSupabase(); // 🔥 erzwingt Reload bei JEDEM Öffnen
-  } else {
-    renderStock();
+  if (view === "stock") {
+    if (READ_ONLY) {
+      loadStockFromSupabase();
+    } else {
+      renderStock();
+    }
   }
-}
+} // ✅ DIESE KLAMMER HAT GEFEHLT
 
 
 
