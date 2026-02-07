@@ -1749,14 +1749,8 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const t=document.querySelector('[data-tab="orders"]'); if(t) t.onclick=()=>switchView("orders"); else console.warn("⚠️ Tab fehlt: orders"); })();
 (()=>{ const t=document.querySelector('[data-tab="archive"]'); if(t) t.onclick=()=>switchView("archive"); else console.warn("⚠️ Tab fehlt: archive"); })();
 (()=>{ const t=document.querySelector('[data-tab="customers"]'); if(t) t.onclick=()=>switchView("customers"); else console.warn("⚠️ Tab fehlt: customers"); })();
-(()=>{ 
-  const t=document.querySelector('[data-tab="stock"]'); 
-  if(t){
-    t.onclick=()=>switchView("stock");
-  } else {
-    console.warn("⚠️ Tab fehlt: stock");
-  }
-})();
+(()=>{ const t=document.querySelector('[data-tab="stock"]'); if(t) t.onclick=()=>switchView("stock");
+    forceShowStockOnMobile(); else console.warn("⚠️ Tab fehlt: stock"); })();
 
 (()=>{ const el=$("btnNew"); if(el) el.onclick=openNewOrder; else console.warn("⚠️ Element fehlt: btnNew"); })();
 
