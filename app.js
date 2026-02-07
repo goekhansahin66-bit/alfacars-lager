@@ -1817,30 +1817,6 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const el=$("s_brand"); if(el) el.addEventListener("input",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_brand"); })();
 (()=>{ const el=$("s_season"); if(el) el.addEventListener("change",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_season"); })();
 
-
-/* =========================================================
-   AUTO-REFRESH – MOBILE LAGER (READ_ONLY)
-   ========================================================= */
-let stockAutoRefreshTimer = null;
-
-function startStockAutoRefresh(){
-  if (!READ_ONLY) return;
-  if (stockAutoRefreshTimer) clearInterval(stockAutoRefreshTimer);
-
-  // alle 30 Sekunden neu laden
-  stockAutoRefreshTimer = setInterval(async () => {
-    await loadStockFromSupabase();
-  }, 30000);
-}
-
-function stopStockAutoRefresh(){
-  if (stockAutoRefreshTimer){
-    clearInterval(stockAutoRefreshTimer);
-    stockAutoRefreshTimer = null;
-  }
-}
-
-
 /* =========================================================
    INIT
    ========================================================= */
@@ -1852,11 +1828,9 @@ async function initApp() {
 
   if (READ_ONLY) {
     await loadStockFromSupabase();
-    startStockAutoRefresh();
-    switchView("stock");
-  } else {
-    switchView("orders");
   }
+
+  switchView("orders");
 }
 
 initApp();
