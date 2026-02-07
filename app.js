@@ -1,5 +1,6 @@
 /* ================================
    SUPABASE – INITIALISIERUNG (TEST)
+================================ */
 
 let supabaseClient = null;
 
@@ -31,6 +32,7 @@ let supabaseClient = null;
    SUPABASE – ORDERS (SOURCE OF TRUTH)
    - Orders werden ausschließlich in Supabase gespeichert.
    - localStorage wird NICHT mehr für Orders genutzt.
+   ========================================================= */
 
 // ✅ Tabelle (erwartet): orders
 // Spalten (mindestens): id, created_at, status, customerId, size, brand, season, qty, unit, deposit, rims, note, orderSource
@@ -63,6 +65,7 @@ function mapOrderForDb(o){
 
 /* ================================
    GLOBAL FIXES – CUSTOMER CACHE
+   ================================ */
 
 // Global customer cache used by normalizeOrderFromDb
 let customersById = new Map();
@@ -343,6 +346,7 @@ async function updateOrderStatusInSupabase(orderId, newStatus){
 
 /* =========================================================
    STORAGE & KONSTANTEN
+   ========================================================= */
 const STORAGE_KEY = "alfacars_orders_final";
 const CUSTOMER_KEY = "alfacars_customers_final";
 const STOCK_KEY = "alfacars_stock_final_v1";
@@ -415,6 +419,7 @@ const $ = id => document.getElementById(id);
    READ-ONLY MODUS (iPhone / optional ?ro=1)
    - iPhone sieht nur Anzeige (keine Änderungen möglich)
    - Master-PC arbeitet normal
+   ========================================================= */
 const READ_ONLY = (
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
   (new URLSearchParams(location.search).get("ro") === "1")
@@ -433,6 +438,7 @@ if (READ_ONLY){
 
 /* =========================================================
    UTILS
+   ========================================================= */
 // ⚠️ DEPRECATED: Orders werden ausschließlich in Supabase gespeichert.
 function saveOrders() { /* no-op */ }
 function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); }
@@ -469,6 +475,7 @@ function qtyClass(q){
    - Offline-safe
    - Erzeugt eine .xls Arbeitsmappe (Excel XML 2003)
    - Enthält Tabs: Bestellungen, Kunden, Lager
+   ========================================================= */
 
 function pad2(n){ return String(n).padStart(2,"0"); }
 function tsYMD(){
@@ -776,39 +783,27 @@ function exportExcelWorkbook(){
 
 /* =========================================================
    VIEW STEUERUNG
+   ========================================================= */
 function switchView(view) {
   currentView = view;
 
-  const map = {
-    orders: "board",
-    archive: "archiveBoard",
-    customers: "customerBoard",
-    stock: "stockBoard"
-  };
-
-  Object.entries(map).forEach(([k, id]) => {
-    const el = document.getElementById(id);
-    if (el) el.classList.toggle("hidden", k !== view);
-  });
+  $("board").classList.toggle("hidden", view !== "orders");
+  $("archiveBoard").classList.toggle("hidden", view !== "archive");
+  $("customerBoard").classList.toggle("hidden", view !== "customers");
+  $("stockBoard").classList.toggle("hidden", view !== "stock");
 
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  const tab = document.querySelector(`[data-tab="${view}"]`);
-  if (tab) tab.classList.add("active");
+  document.querySelector(`[data-tab="${view}"]`).classList.add("active");
 
   if (view === "orders") renderOrders();
   if (view === "archive") renderArchive();
   if (view === "customers") renderCustomers();
   if (view === "stock") renderStock();
-
-  // Mobile READ_ONLY: Auto-Refresh nur wenn Lager-Ansicht aktiv ist
-  if (READ_ONLY) {
-    if (view === "stock") startStockAutoRefresh();
-    else stopStockAutoRefresh();
-  }
 }
 
 /* =========================================================
    MARKEN
+   ========================================================= */
 function renderBrands() {
   // FIX: defensive – falls einzelne Elemente im HTML fehlen, nicht crashen
   const a = $("brandList");
@@ -819,6 +814,7 @@ function renderBrands() {
 
 /* =========================================================
    KUNDEN – (keine doppelten, Telefon oder E-Mail Pflicht)
+   ========================================================= */
 function findCustomer(phone, email, plate){
   const p = phoneClean(phone);
   const e = emailClean(email);
@@ -887,6 +883,7 @@ function upsertCustomer(data){
 
 /* =========================================================
    RENDER: BESTELLUNGEN
+   ========================================================= */
 function renderOrders(){
   const q = $("searchInput").value.toLowerCase().trim();
 
@@ -913,6 +910,7 @@ function renderOrders(){
 
 /* =========================================================
    RENDER: ARCHIV
+   ========================================================= */
 function renderArchive(){
   const q = $("searchInput").value.toLowerCase().trim();
   $("col-Archiv").innerHTML="";
@@ -949,6 +947,7 @@ function renderArchive(){
 
 /* =========================================================
    KARTEN: BESTELLUNG
+   ========================================================= */
 function buildOrderCard(o,c,withStatus){
   const total = o.qty * o.unit;
   const rest = Math.max(total - o.deposit,0);
@@ -1013,6 +1012,7 @@ function buildOrderCard(o,c,withStatus){
 
 /* =========================================================
    RENDER: KUNDEN
+   ========================================================= */
 function renderCustomers(){
   const q = $("customerSearchInput").value.toLowerCase().trim();
   $("customerList").innerHTML="";
@@ -1061,6 +1061,7 @@ function renderCustomers(){
 
 /* =========================================================
    REICHWEITE – Auswertung (Ort + Kanal)
+   ========================================================= */
 function renderReachability(){
   const box = $("reachBox");
   if (!box) return;
@@ -1105,6 +1106,7 @@ function renderReachability(){
 
 /* =========================================================
    MODAL: BESTELLUNG
+   ========================================================= */
 function openNewOrder(){
   if (READ_ONLY) return roAlert();
   editingOrderId=null;
@@ -1286,6 +1288,7 @@ function deleteOrder(){
 
 /* =========================================================
    MODAL: KUNDE
+   ========================================================= */
 function openCustomerModal(id){
   if (READ_ONLY) return roAlert();
   editingCustomerId = id;
@@ -1354,6 +1357,7 @@ function deleteCustomer(){
    SUPABASE – STOCK (READ ONLY / Mobile)
    - Mobile lädt Lager direkt aus Supabase (Anzeige-Modus)
    - PC nutzt aktuell weiterhin localStorage für Lager (Editing)
+   ========================================================= */
 
 async function loadStockFromSupabase() {
   if (!READ_ONLY) return;
@@ -1390,6 +1394,7 @@ async function loadStockFromSupabase() {
 
 /* =========================================================
    LAGER – Bestand
+   ========================================================= */
 function stockKey(item){
   const size = normalizeTireSize(item.size);
   const brand = clean(item.brand);
@@ -1637,6 +1642,7 @@ function renderModelSuggestions(){
 
 /* =========================================================
    TAGESABSCHLUSS / BESTELLUNG (bleibt wie vorher)
+   ========================================================= */
 function buildNeedList(){
   return stock
     .map(s => ({ s, need: Math.max(0, TARGET_QTY - Number(s.qty||0)) }))
@@ -1727,6 +1733,7 @@ function exportDayCloseOrder(){
 
 /* =========================================================
    EVENTS
+   ========================================================= */
 
 function overrideReadOnlyUI(){
   // Buttons, die Änderungen machen, auf Anzeige-Modus blockieren
@@ -1820,37 +1827,22 @@ if (READ_ONLY) overrideReadOnlyUI();
 
 /* =========================================================
    AUTO-REFRESH – MOBILE LAGER (READ_ONLY)
+   ========================================================= */
 let stockAutoRefreshTimer = null;
 
 function startStockAutoRefresh(){
   if (!READ_ONLY) return;
+  if (stockAutoRefreshTimer) clearInterval(stockAutoRefreshTimer);
 
-  stopStockAutoRefresh();
-
-  const tick = async () => {
-    try { await loadStockFromSupabase(); } catch(_) {}
-    // iOS kann setInterval stark drosseln – setTimeout Loop ist stabiler
-    stockAutoRefreshTimer = setTimeout(tick, 30000);
-  };
-
-  // sofort einmal nachladen + dann Loop
-  tick();
-
-  // Wenn Tab wieder sichtbar wird: sofort aktualisieren
-  document.addEventListener("visibilitychange", () => {
-    if (!READ_ONLY) return;
-    if (document.visibilityState === "visible") loadStockFromSupabase();
-  });
-
-  window.addEventListener("focus", () => {
-    if (!READ_ONLY) return;
-    loadStockFromSupabase();
-  });
+  // alle 30 Sekunden neu laden
+  stockAutoRefreshTimer = setInterval(async () => {
+    await loadStockFromSupabase();
+  }, 30000);
 }
 
 function stopStockAutoRefresh(){
   if (stockAutoRefreshTimer){
-    clearTimeout(stockAutoRefreshTimer);
+    clearInterval(stockAutoRefreshTimer);
     stockAutoRefreshTimer = null;
   }
 }
@@ -1858,22 +1850,38 @@ function stopStockAutoRefresh(){
 
 
 /* =========================================================
+   READ_ONLY MOBILE VISIBILITY FIX – FORCE STOCK VIEW
+   ========================================================= */
+function forceShowStockOnMobile(){
+  if (!READ_ONLY) return;
+  const stockBoard = document.getElementById("stockBoard");
+  if (stockBoard){
+    stockBoard.classList.remove("hidden");
+    stockBoard.style.display = "block";
+  }
+  const tabs = document.querySelector(".tabs");
+  if (tabs) tabs.style.display = "none";
+}
+
+
+/* =========================================================
    INIT
+   ========================================================= */
 renderBrands();
 
 async function initApp() {
   await initCustomersFromSupabase();
   await initOrdersFromSupabase();
 
-  // 📱 Handy soll ALLES sehen (Bestellungen, Archiv, Kunden, Lager) – aber READ_ONLY bleibt aktiv.
-  // Start immer in Bestellungen; Lager kann per Tab geöffnet werden.
-  switchView("orders");
-
-  // Falls Handy direkt mit ?view=stock geöffnet wird
-  const v = new URLSearchParams(location.search).get("view");
-  if (v && ["orders","archive","customers","stock"].includes(v)) {
-    switchView(v);
+  if (READ_ONLY) {
+    await loadStockFromSupabase();
+    startStockAutoRefresh();
+    switchView("stock");
+    forceShowStockOnMobile();
+  } else {
+    switchView("orders");
   }
 }
 
 initApp();
+
