@@ -1768,8 +1768,18 @@ if (READ_ONLY) overrideReadOnlyUI();
     el.value = normalizeTireSize(el.value);
   });
 })();
-(()=>{ const el=$("s_brand"); if(el) el.addEventListener("input",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_brand"); })();
-(()=>{ const el=$("s_season"); if(el) el.addEventListener("change",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_season"); })();
+(()=>{
+  const el = $("s_brand");
+  if (el) el.addEventListener("input", renderModelSuggestions);
+  else console.warn("⚠️ Element fehlt: s_brand");
+})();
+
+(()=>{
+  const el = $("s_season");
+  if (el) el.addEventListener("change", renderModelSuggestions);
+  else console.warn("⚠️ Element fehlt: s_season");
+})();
+
 
 /* =========================================================
    INIT
@@ -1777,10 +1787,11 @@ if (READ_ONLY) overrideReadOnlyUI();
 renderBrands();
 
 // ✅ Orders initial aus Supabase laden (ohne Reload nötig)
-initApp();
 
 async function initApp(){
   await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
   switchView("orders");
 }
+// === Final App Init ===
+initApp();
 
