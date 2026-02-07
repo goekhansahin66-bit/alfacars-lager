@@ -373,6 +373,31 @@ const TARGET_QTY = 4; // Sollbestand fürs Lager
 
 // ⚠️ Orders werden NICHT mehr aus localStorage geladen.
 //    Quelle der Wahrheit ist Supabase.
+
+/* ================================
+   GLOBAL CUSTOMER CACHE (FIX)
+   ================================ */
+let customersById = new Map();
+
+function rebuildCustomersIndex(){
+  customersById = new Map();
+  (customers || []).forEach(c => {
+    if (c && c.id) customersById.set(c.id, c);
+  });
+}
+
+// Minimal in-memory upsert used by Supabase flows
+function upsertCustomerInMemory(customer){
+  if (!customer || !customer.id) return;
+  const existing = customers.find(c => c.id === customer.id);
+  if (existing){
+    Object.assign(existing, customer);
+  } else {
+    customers.unshift(customer);
+  }
+  customersById.set(customer.id, customer);
+}
+
 let orders = [];
 let customers = JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "[]");
 let stock = JSON.parse(localStorage.getItem(STOCK_KEY) || "[]");
