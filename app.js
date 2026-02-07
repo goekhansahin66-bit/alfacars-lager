@@ -1866,16 +1866,6 @@ function stopStockAutoRefresh(){
 
 
 
-/* =========================================================
-   READ_ONLY MOBILE VISIBILITY FIX – FORCE STOCK VIEW
-   ========================================================= */
-function forceShowStockOnMobile(){
-  if (!READ_ONLY) return;
-  const stockBoard = document.getElementById("stockBoard");
-  if (stockBoard){
-    stockBoard.classList.remove("hidden");
-    stockBoard.style.display = "block";
-  }
   // Tabs NICHT verstecken – Mobile soll zwischen Übersicht (Orders) und Lager wechseln können
 }
   const tabs = document.querySelector(".tabs");
@@ -1893,11 +1883,9 @@ async function initApp() {
   await initOrdersFromSupabase();
 
   if (READ_ONLY) {
-    // Mobile READ_ONLY: Start im Lager, aber Übersicht (Orders) bleibt erreichbar
     await loadStockFromSupabase();
     startStockAutoRefresh();
     switchView("stock");
-    forceShowStockOnMobile();
   } else {
     switchView("orders");
   }
