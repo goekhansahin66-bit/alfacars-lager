@@ -787,13 +787,27 @@ function exportExcelWorkbook(){
 function switchView(view) {
   currentView = view;
 
-  $("board").classList.toggle("hidden", view !== "orders");
-  $("archiveBoard").classList.toggle("hidden", view !== "archive");
-  $("customerBoard").classList.toggle("hidden", view !== "customers");
-  $("stockBoard").classList.toggle("hidden", view !== "stock");
+  const map = {
+    orders: "board",
+    archive: "archiveBoard",
+    customers: "customerBoard",
+    stock: "stockBoard"
+  };
+
+  Object.entries(map).forEach(([k,id])=>{
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("hidden", k !== view);
+  });
 
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelector(`[data-tab="${view}"]`).classList.add("active");
+  const tab = document.querySelector(`[data-tab="${view}"]`);
+  if (tab) tab.classList.add("active");
+
+  if (view === "orders") renderOrders();
+  if (view === "archive") renderArchive();
+  if (view === "customers") renderCustomers();
+  if (view === "stock") renderStock();
+}"]`).classList.add("active");
 
   if (view === "orders") renderOrders();
   if (view === "archive") renderArchive();
@@ -1862,15 +1876,7 @@ function stopStockAutoRefresh(){
     stockAutoRefreshTimer = null;
   }
 }
-}
 
-
-
-  // Tabs NICHT verstecken – Mobile soll zwischen Übersicht (Orders) und Lager wechseln können
-}
-  const tabs = document.querySelector(".tabs");
-  if (tabs) tabs.style.display = "none";
-}
 
 
 /* =========================================================
