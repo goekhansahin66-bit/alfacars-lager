@@ -794,7 +794,7 @@ function switchView(view) {
     stock: "stockBoard"
   };
 
-  Object.entries(map).forEach(([k,id])=>{
+  Object.entries(map).forEach(([k, id]) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle("hidden", k !== view);
   });
@@ -807,16 +807,17 @@ function switchView(view) {
   if (view === "archive") renderArchive();
   if (view === "customers") renderCustomers();
   if (view === "stock") renderStock();
-}"]`).classList.add("active");
 
-  if (view === "orders") renderOrders();
-  if (view === "archive") renderArchive();
-  if (view === "customers") renderCustomers();
-  if (view === "stock") renderStock();
+  // Mobile READ_ONLY: Auto-Refresh nur wenn Lager-Ansicht aktiv ist
+  if (READ_ONLY) {
+    if (view === "stock") startStockAutoRefresh();
+    else stopStockAutoRefresh();
+  }
 }
 
 /* =========================================================
    MARKEN
+   ========================================================= */
    ========================================================= */
 function renderBrands() {
   // FIX: defensive – falls einzelne Elemente im HTML fehlen, nicht crashen
@@ -1888,12 +1889,14 @@ async function initApp() {
   await initCustomersFromSupabase();
   await initOrdersFromSupabase();
 
-  if (READ_ONLY) {
-    await loadStockFromSupabase();
-    startStockAutoRefresh();
-    switchView("stock");
-  } else {
-    switchView("orders");
+  // 📱 Handy soll ALLES sehen (Bestellungen, Archiv, Kunden, Lager) – aber READ_ONLY bleibt aktiv.
+  // Start immer in Bestellungen; Lager kann per Tab geöffnet werden.
+  switchView("orders");
+
+  // Falls Handy direkt mit ?view=stock geöffnet wird
+  const v = new URLSearchParams(location.search).get("view");
+  if (v && ["orders","archive","customers","stock"].includes(v)) {
+    switchView(v);
   }
 }
 
