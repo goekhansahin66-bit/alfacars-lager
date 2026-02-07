@@ -1801,25 +1801,26 @@ if (READ_ONLY) overrideReadOnlyUI();
   else if(currentView==="archive") renderArchive();
   };
 })();
-const el = $("searchInput");
+(()=>{ 
+  const el = $("searchInput");
+  if (!el) { console.warn("⚠️ Element fehlt: searchInput"); return; }
+  el.oninput = () => {
+    if (currentView === "orders") renderOrders();
+    else if (currentView === "archive") renderArchive();
+    // bewusst KEIN else → Lager & Kunden NICHT anfassen
+  };
+})();
 
-if (!el) {
-  console.warn("⚠️ Element fehlt: searchInput");
-  return;
-}
+(()=>{ const el = $("customerSearchInput"); if(el) el.oninput = renderCustomers; else console.warn("⚠️ Element fehlt: customerSearchInput"); })();
 
-el.oninput = () => {
-  if (currentView === "orders") {
-    renderOrders();
-  } else if (currentView === "archive") {
-    renderArchive();
-  }
-  // bewusst KEIN else → Lager & Kunden NICHT anfassen
-};
-
-
- else console.warn("⚠️ Element fehlt: stockSearchInput"); })();
-
+(()=>{ 
+  const el = $("stockSearchInput"); 
+  if (!el) { console.warn("⚠️ Element fehlt: stockSearchInput"); return; }
+  el.oninput = () => {
+    if (READ_ONLY) return;
+    renderStock();
+  };
+})();
 ["f_qty","f_unit","f_deposit"].forEach(id=>{
   const el = $(id);
   if(!el){ console.warn("⚠️ Element fehlt:", id); return; }
