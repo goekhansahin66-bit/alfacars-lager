@@ -1696,20 +1696,17 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const el=$("s_brand"); if(el) el.addEventListener("input",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_brand"); })();
 (()=>{ const el=$("s_season"); if(el) el.addEventListener("change",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_season"); })();
 
-/* =========================================================
-   INIT
-   ========================================================= */
 renderBrands();
 
 // =====================================
 // INIT
 // =====================================
 
-async function initApp(){
+async function initApp() {
   await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
   switchView("orders");
 }
 
-// Start der App (GENAU EINMAL)
+// Start der App – GENAU EINMAL
 initApp();
 
