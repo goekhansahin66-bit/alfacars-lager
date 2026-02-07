@@ -90,47 +90,15 @@ function normalizeOrderFromDb(row) {
     customerEmail: customer.email || ""
   };
 }
-async function initStockFromSupabase() {
-  if (!supabaseClient) {
-    console.warn("⚠️ Supabase nicht verbunden – Lager nicht geladen.");
-    return;
-  }
-
-  const { data, error } = await supabaseClient
-    .from("stock")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("❌ Fehler beim Laden des Lagers:", error.message);
-    return;
-  }
-
-  // 📱 Handy = Supabase, 🖥️ PC = localStorage
-if (READ_ONLY) {
-  stock = Array.isArray(data)
-    ? data.map(s => ({
-        ...s,
-        created: s.created_at
-          ? new Date(s.created_at).toLocaleString("de-DE")
-          : ""
-      }))
-    : [];
-
-  // 🔥 Lager-View aktivieren
-  switchView("stock");
-}
-
-
 
 
 
 async function initOrdersFromSupabase(){
- if (!supabaseClient){
+  if (!supabaseClient){
     console.warn("⚠️ Supabase nicht verbunden – Orders können nicht geladen werden.");
     orders = [];
     return;
-  
+  }
 
   // 1) Orders aus Supabase laden
   const { data, error } = await supabaseClient
@@ -297,6 +265,63 @@ async function updateOrderStatusInSupabase(orderId, newStatus){
   return { ok:true, data: normalized };
 }
 
+
+/* =========================================================
+   SUPABASE – STOCK (READ-ONLY auf Handy)
+   - PC bleibt localStorage
+   - Handy lädt nur aus Supabase (Anzeige)
+   - Keine UI-Sperre, keine Loops, kein switchView-Zwang
+   ========================================================= */
+const SUPABASE_STOCK_TABLE = "stock";
+
+// DB → UI Normalisierung (passt zu deiner Tabelle: id, created_at, size, brand, season, model, dot, qty)
+function normalizeStockFromDb(row){
+  return {
+    id: row.id,
+    created: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    dot: row.dot || "",
+    qty: Number(row.qty || 0)
+  };
+}
+
+let stockLoadedFromSupabase = false;
+let stockLoadPromise = null;
+
+async function initStockFromSupabaseOnce(){
+  if (!READ_ONLY) return;               // PC bleibt lokal
+  if (stockLoadedFromSupabase) return;
+  if (stockLoadPromise) return stockLoadPromise;
+
+  if (!supabaseClient){
+    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden.");
+    stockLoadedFromSupabase = true;     // verhindert Loop/Spam
+    return;
+  }
+
+  stockLoadPromise = (async ()=>{
+    const { data, error } = await supabaseClient
+      .from(SUPABASE_STOCK_TABLE)
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error){
+      console.error("❌ Fehler beim Laden des Lagers:", error.message);
+      stockLoadedFromSupabase = true;
+      return;
+    }
+
+    stock = Array.isArray(data) ? data.map(normalizeStockFromDb) : [];
+    stockLoadedFromSupabase = true;
+  })();
+
+  return stockLoadPromise;
+}
+
+
 /* =========================================================
    STORAGE & KONSTANTEN
    ========================================================= */
@@ -386,6 +411,10 @@ if (READ_ONLY){
   document.documentElement.classList.add("read-only");
   const foot = document.querySelector(".foot .muted");
   if (foot) foot.textContent = "Anzeige-Modus · nur schauen · Änderungen nur am Master-PC";
+
+  // Handy: Lager-Tab sicher anklickbar machen, falls HTML disabled ist
+  const stockTab = document.querySelector('.tab[data-tab="stock"]');
+  if (stockTab) stockTab.disabled = false;
 }
 
 
@@ -395,7 +424,13 @@ if (READ_ONLY){
 // ⚠️ DEPRECATED: Orders werden ausschließlich in Supabase gespeichert.
 function saveOrders() { /* no-op */ }
 function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); }
-function saveStock() { localStorage.setItem(STOCK_KEY, JSON.stringify(stock)); }
+
+// FIX: Handy darf NIE localStorage-Lager schreiben (read-only)
+function saveStock() {
+  if (READ_ONLY) return;
+  localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
+}
+
 function saveAll(){ saveOrders(); saveCustomers(); saveStock(); }
 
 function now() { return new Date().toLocaleString("de-DE"); }
@@ -588,45 +623,7 @@ function findCustomerById(id){
   return customers.find(c => c.id === id) || null;
 }
 
-// ✅ NEU: Kunde für eine Order auflösen
-// - Legacy: localStorage-Kunden (Number-IDs)
-// - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
-function resolveCustomerForOrder(o){
-  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
-
-  const local = id ? findCustomerById(id) : null;
-  if (local) return local;
-
-  return {
-    id,
-    name: o?.customerName || "Unbekannter Kunde",
-    phone: o?.customerPhone || "",
-    email: o?.customerEmail || "",
-    plate: o?.licensePlate || ""
-  };
-}
-
-
-// ✅ NEU: Kunde für eine Order auflösen
-// - Legacy: localStorage-Kunden (Number-IDs)
-// - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
-function resolveCustomerForOrder(o){
-  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
-
-  const local = id ? findCustomerById(id) : null;
-  if (local) return local;
-
-  return {
-    id,
-    name: o?.customerName || "Unbekannter Kunde",
-    phone: o?.customerPhone || "",
-    email: o?.customerEmail || "",
-    plate: o?.licensePlate || ""
-  };
-}
-
-
-// ✅ NEU: Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
+// ✅ Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
 function resolveCustomerForOrder(o){
   const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
 
@@ -777,7 +774,18 @@ function switchView(view) {
   if (view === "orders") renderOrders();
   if (view === "archive") renderArchive();
   if (view === "customers") renderCustomers();
-  if (view === "stock") renderStock();
+
+  if (view === "stock") {
+    // Sofort rendern (Navigation bleibt schnell/unkritisch)
+    renderStock();
+
+    // Handy: einmalig aus Supabase nachladen, dann nur re-render (kein switchView)
+    if (READ_ONLY) {
+      initStockFromSupabaseOnce().then(()=>{
+        if (currentView === "stock") renderStock();
+      });
+    }
+  }
 }
 
 /* =========================================================
@@ -1675,11 +1683,18 @@ function exportDayCloseOrder(){
    ========================================================= */
 
 function overrideReadOnlyUI(){
-  // Buttons, die Änderungen machen, auf Anzeige-Modus blockieren
+  // Nur Buttons, die Änderungen machen, blockieren – Navigation bleibt frei.
+  // Wichtig: NICHT onclick überschreiben (sonst zerstört man bestehende Handler),
+  // sondern im Capture-Phase abfangen.
   const ids = ["btnNew","btnSave","btnDelete","btnNewCustomer","cbtnSave","cbtnDelete","btnNewStock","s_save","s_delete","btnDayClose","d_exportOrder","d_exportAll"];
   ids.forEach(id=>{
     const el = document.getElementById(id);
-    if (el) el.onclick = roAlert;
+    if (!el) return;
+    el.addEventListener("click", (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      roAlert();
+    }, true);
   });
 }
 // direkt nach dem Laden ausführen (Script ist am Ende von body)
