@@ -806,7 +806,8 @@ function switchView(view) {
       renderStock();
     }
   }
-} // ✅ DIESE KLAMMER HAT GEFEHLT
+}
+
 
 
 
@@ -1803,7 +1804,11 @@ if (READ_ONLY) overrideReadOnlyUI();
 
 (()=>{ const el=$("searchInput"); if(el) el.oninput=()=>currentView==="orders"?renderOrders():renderArchive(); else console.warn("⚠️ Element fehlt: searchInput"); })();
 (()=>{ const el=$("customerSearchInput"); if(el) el.oninput=renderCustomers; else console.warn("⚠️ Element fehlt: customerSearchInput"); })();
-(()=>{ const el=$("stockSearchInput"); if(el) el.oninput=renderStock; else console.warn("⚠️ Element fehlt: stockSearchInput"); })();
+(()=>{ const el=$("stockSearchInput"); if(el) el.oninput = () => {
+  if (READ_ONLY) return;
+  renderStock();
+};
+ else console.warn("⚠️ Element fehlt: stockSearchInput"); })();
 
 ["f_qty","f_unit","f_deposit"].forEach(id=>{
   const el = $(id);
