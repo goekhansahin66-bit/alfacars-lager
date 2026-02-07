@@ -800,14 +800,14 @@ function switchView(view) {
   if (view === "customers") renderCustomers();
 
   // ✅ EINZIGER FIX: Lager auf Handy aus Supabase laden
-  if (view === "stock") {
-    if (READ_ONLY) {
-      loadStockFromSupabase();
-    } else {
-      renderStock();
-    }
+if (view === "stock") {
+  if (READ_ONLY) {
+    loadStockFromSupabase(); // 🔥 erzwingt Reload bei JEDEM Öffnen
+  } else {
+    renderStock();
   }
 }
+
 
 
 
@@ -1371,6 +1371,8 @@ function deleteCustomer(){
 
 async function loadStockFromSupabase() {
   if (!READ_ONLY) return;
+stock = []; // 🔴 WICHTIG: alten Zustand löschen
+
 
   if (!supabaseClient) {
     console.warn("Supabase nicht verbunden – Lager kann nicht geladen werden");
