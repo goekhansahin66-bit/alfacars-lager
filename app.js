@@ -1823,6 +1823,7 @@ if (READ_ONLY) overrideReadOnlyUI();
 renderBrands();
 
 async function initApp() {
+  await initCustomersFromSupabase();
   await initOrdersFromSupabase();
 
   if (READ_ONLY) {
