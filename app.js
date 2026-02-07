@@ -1805,11 +1805,19 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const el=$("searchInput"); if(el) el.oninput=()=>currentView==="orders"?renderOrders():renderArchive(); else console.warn("⚠️ Element fehlt: searchInput"); })();
 (()=>{ const el=$("customerSearchInput"); if(el) el.oninput=renderCustomers; else console.warn("⚠️ Element fehlt: customerSearchInput"); })();
 (()=>{ 
-  const el = $("stockSearchInput"); 
-  if (!el) return;
+  const el = $("searchInput"); 
+  if (!el) {
+    console.warn("⚠️ Element fehlt: searchInput");
+    return;
+  }
+
   el.oninput = () => {
-    if (READ_ONLY) return;
-    renderStock();
+    if (currentView === "orders") {
+      renderOrders();
+    } else if (currentView === "archive") {
+      renderArchive();
+    }
+    // 🔴 bewusst KEIN else → Lager & Kunden NICHT anfassen
   };
 })();
 
