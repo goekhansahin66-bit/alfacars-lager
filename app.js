@@ -606,42 +606,6 @@ function findCustomerById(id){
 function resolveCustomerForOrder(o){
   const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
 
-  const local = id ? findCustomerById(id) : null;
-  if (local) return local;
-
-  return {
-    id,
-    name: o?.customerName || "Unbekannter Kunde",
-    phone: o?.customerPhone || "",
-    email: o?.customerEmail || "",
-    plate: o?.licensePlate || ""
-  };
-}
-
-
-// ✅ NEU: Kunde für eine Order auflösen
-// - Legacy: localStorage-Kunden (Number-IDs)
-// - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
-function resolveCustomerForOrder(o){
-  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
-
-  const local = id ? findCustomerById(id) : null;
-  if (local) return local;
-
-  return {
-    id,
-    name: o?.customerName || "Unbekannter Kunde",
-    phone: o?.customerPhone || "",
-    email: o?.customerEmail || "",
-    plate: o?.licensePlate || ""
-  };
-}
-
-
-// ✅ NEU: Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
-function resolveCustomerForOrder(o){
-  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
-
   // 1) Legacy/localStorage
   const local = id ? findCustomerById(id) : null;
   if (local) return local;
@@ -1774,8 +1738,6 @@ if (READ_ONLY) overrideReadOnlyUI();
 renderBrands();
 
 // ✅ Orders initial aus Supabase laden (ohne Reload nötig)
-initApp();
-
 async function initApp() {
   // Orders aus Supabase laden
   await initOrdersFromSupabase();
@@ -1790,3 +1752,6 @@ async function initApp() {
   // Desktop
   switchView("orders");
 }
+
+// Start der App – GENAU EINMAL
+initApp();
