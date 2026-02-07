@@ -40,7 +40,8 @@ let supabaseClient = null;
 // Hinweis: Wenn eure Spalten anders heißen, bitte in mapOrderForDb() anpassen.
 const SUPABASE_ORDERS_TABLE = "orders";
 
-function mapOrderForDb(o){
+function mapOrderForDb(o){}
+
   // ✅ zentrale Stelle, damit später Wartung einfach bleibt
   // Wichtig: created_at wird in Supabase als Timestamp geführt.
   // - Bei neuen Orders lassen wir created_at weg (DB default: now()).
