@@ -798,8 +798,17 @@ function switchView(view) {
   if (view === "orders") renderOrders();
   if (view === "archive") renderArchive();
   if (view === "customers") renderCustomers();
-  if (view === "stock") renderStock();
+
+  // ✅ EINZIGER FIX: Lager auf Handy aus Supabase laden
+  if (view === "stock") {
+    if (READ_ONLY) {
+      loadStockFromSupabase();
+    } else {
+      renderStock();
+    }
+  }
 }
+
 
 /* =========================================================
    MARKEN
