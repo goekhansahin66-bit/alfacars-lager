@@ -1804,12 +1804,6 @@ if (READ_ONLY) overrideReadOnlyUI();
 
 (()=>{ const el=$("searchInput"); if(el) el.oninput=()=>currentView==="orders"?renderOrders():renderArchive(); else console.warn("⚠️ Element fehlt: searchInput"); })();
 (()=>{ const el=$("customerSearchInput"); if(el) el.oninput=renderCustomers; else console.warn("⚠️ Element fehlt: customerSearchInput"); })();
-(()=>{ 
-  const el = $("searchInput"); 
-  if (!el) {
-    console.warn("⚠️ Element fehlt: searchInput");
-    return;
-  }
 
   el.oninput = () => {
     if (currentView === "orders") {
