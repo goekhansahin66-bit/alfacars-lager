@@ -1783,3 +1783,4 @@ async function initApp(){
   await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
   switchView("orders");
 }
+
