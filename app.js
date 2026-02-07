@@ -265,6 +265,39 @@ async function updateOrderStatusInSupabase(orderId, newStatus){
   if (idx >= 0) orders[idx] = normalized;
   return { ok:true, data: normalized };
 }
+// =====================================
+// STOCK – READ ONLY (Mobile)
+// =====================================
+async function loadStockFromSupabase() {
+  if (!READ_ONLY) return;
+
+  if (!supabaseClient) {
+    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("stock")
+    .select("*");
+
+  if (error) {
+    console.error("❌ Fehler beim Laden des Lagers:", error.message);
+    return;
+  }
+
+  stock = (data || []).map(row => ({
+    id: row.id,
+    created: row.created_at
+      ? new Date(row.created_at).toLocaleString("de-DE")
+      : "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    dot: row.dot || "",
+    qty: Number(row.qty || 0)
+  }));
+}
 
 /* =========================================================
    STORAGE & KONSTANTEN
@@ -283,7 +316,7 @@ const TIRE_MODELS = {
   "Berlin Tires": {
     "Sommer": ["Summer HP","Eco Drive"],
     "Winter": ["Winter Grip"],
-    "Allwetter": ["All Season 2","All Weather Pro"]
+    "Allwetter": ["All Season 2","All Season 1"]
   },
   "Syron": {
     "Sommer": ["Race 1 Plus","Premium Performance"],
@@ -1704,10 +1737,16 @@ renderBrands();
 // =====================================
 
 async function initApp() {
-  await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
+  await initOrdersFromSupabase(); // Orders aus Supabase
+
+  if (READ_ONLY) {
+    await loadStockFromSupabase(); // 👈 Lager für Mobile laden
+  }
+
   switchView("orders");
 }
 
 // Start der App – GENAU EINMAL
 initApp();
+
 
