@@ -1749,8 +1749,7 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const t=document.querySelector('[data-tab="orders"]'); if(t) t.onclick=()=>switchView("orders"); else console.warn("⚠️ Tab fehlt: orders"); })();
 (()=>{ const t=document.querySelector('[data-tab="archive"]'); if(t) t.onclick=()=>switchView("archive"); else console.warn("⚠️ Tab fehlt: archive"); })();
 (()=>{ const t=document.querySelector('[data-tab="customers"]'); if(t) t.onclick=()=>switchView("customers"); else console.warn("⚠️ Tab fehlt: customers"); })();
-(()=>{ const t=document.querySelector('[data-tab="stock"]'); if(t) t.onclick=()=>switchView("stock");
-    forceShowStockOnMobile(); else console.warn("⚠️ Tab fehlt: stock"); })();
+(()=>{ const t=document.querySelector('[data-tab="stock"]'); if(t) t.onclick=()=>switchView("stock"); else console.warn("⚠️ Tab fehlt: stock"); })();
 
 (()=>{ const el=$("btnNew"); if(el) el.onclick=openNewOrder; else console.warn("⚠️ Element fehlt: btnNew"); })();
 
@@ -1842,22 +1841,6 @@ function stopStockAutoRefresh(){
 }
 
 
-
-/* =========================================================
-   READ_ONLY MOBILE VISIBILITY FIX – FORCE STOCK VIEW
-   ========================================================= */
-function forceShowStockOnMobile(){
-  if (!READ_ONLY) return;
-  const stockBoard = document.getElementById("stockBoard");
-  if (stockBoard){
-    stockBoard.classList.remove("hidden");
-    stockBoard.style.display = "block";
-  }
-  const tabs = document.querySelector(".tabs");
-  if (tabs) tabs.style.display = "none";
-}
-
-
 /* =========================================================
    INIT
    ========================================================= */
@@ -1871,7 +1854,6 @@ async function initApp() {
     await loadStockFromSupabase();
     startStockAutoRefresh();
     switchView("stock");
-    forceShowStockOnMobile();
   } else {
     switchView("orders");
   }
