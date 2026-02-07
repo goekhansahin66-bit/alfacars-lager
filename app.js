@@ -40,8 +40,7 @@ let supabaseClient = null;
 // Hinweis: Wenn eure Spalten anders heißen, bitte in mapOrderForDb() anpassen.
 const SUPABASE_ORDERS_TABLE = "orders";
 
-function mapOrderForDb(o){}
-
+function mapOrderForDb(o){
   // ✅ zentrale Stelle, damit später Wartung einfach bleibt
   // Wichtig: created_at wird in Supabase als Timestamp geführt.
   // - Bei neuen Orders lassen wir created_at weg (DB default: now()).
@@ -127,6 +126,50 @@ async function initOrdersFromSupabase(){
   }
 
   orders = Array.isArray(data) ? data.map(normalizeOrderFromDb) : [];
+}
+
+
+// =======================================================
+// STOCK (Lager) aus Supabase laden (READ_ONLY / iPhone)
+// =======================================================
+async function loadStockFromSupabase() {
+  if (!READ_ONLY) return;
+
+  if (!supabaseClient) {
+    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("stock")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("❌ Fehler beim Laden des Lagers:", error.message);
+    return;
+  }
+
+  stock = (Array.isArray(data) ? data : []).map((row) => ({
+    id: row.id,
+    created: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    dot: row.dot || "",
+    qty: Number(row.qty ?? 0),
+  }));
+
+  // Cache fürs Handy (optional)
+  try { saveStock(); } catch {}
+
+  // Falls wir gerade in "Lager" sind: neu rendern
+  try {
+    if (typeof currentView !== "undefined" && currentView === "stock") renderStock();
+  } catch (e) {
+    console.error("❌ Fehler beim Rendern des Lagers:", e);
+  }
 }
 
 async function saveOrderToSupabase(currentOrder){
@@ -265,39 +308,6 @@ async function updateOrderStatusInSupabase(orderId, newStatus){
   if (idx >= 0) orders[idx] = normalized;
   return { ok:true, data: normalized };
 }
-// =====================================
-// STOCK – READ ONLY (Mobile)
-// =====================================
-async function loadStockFromSupabase() {
-  if (!READ_ONLY) return;
-
-  if (!supabaseClient) {
-    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden");
-    return;
-  }
-
-  const { data, error } = await supabaseClient
-    .from("stock")
-    .select("*");
-
-  if (error) {
-    console.error("❌ Fehler beim Laden des Lagers:", error.message);
-    return;
-  }
-
-  stock = (data || []).map(row => ({
-    id: row.id,
-    created: row.created_at
-      ? new Date(row.created_at).toLocaleString("de-DE")
-      : "",
-    size: row.size || "",
-    brand: row.brand || "",
-    season: row.season || "",
-    model: row.model || "",
-    dot: row.dot || "",
-    qty: Number(row.qty || 0)
-  }));
-}
 
 /* =========================================================
    STORAGE & KONSTANTEN
@@ -316,7 +326,7 @@ const TIRE_MODELS = {
   "Berlin Tires": {
     "Sommer": ["Summer HP","Eco Drive"],
     "Winter": ["Winter Grip"],
-    "Allwetter": ["All Season 2","All Season 1"]
+    "Allwetter": ["All Season 2","All Weather Pro"]
   },
   "Syron": {
     "Sommer": ["Race 1 Plus","Premium Performance"],
@@ -593,11 +603,39 @@ function findCustomerById(id){
 // ✅ NEU: Kunde für eine Order auflösen
 // - Legacy: localStorage-Kunden (Number-IDs)
 // - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
 
 
 // ✅ NEU: Kunde für eine Order auflösen
 // - Legacy: localStorage-Kunden (Number-IDs)
 // - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
 
 
 // ✅ NEU: Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
@@ -1730,23 +1768,25 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const el=$("s_brand"); if(el) el.addEventListener("input",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_brand"); })();
 (()=>{ const el=$("s_season"); if(el) el.addEventListener("change",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_season"); })();
 
+/* =========================================================
+   INIT
+   ========================================================= */
 renderBrands();
 
-// =====================================
-// INIT
-// =====================================
-
-async function initApp() {
-  await initOrdersFromSupabase(); // Orders aus Supabase
-
-  if (READ_ONLY) {
-    await loadStockFromSupabase(); // 👈 Lager für Mobile laden
-  }
-
-  switchView("orders");
-}
-
-// Start der App – GENAU EINMAL
+// ✅ Orders initial aus Supabase laden (ohne Reload nötig)
 initApp();
 
+async function initApp() {
+  // Orders aus Supabase laden
+  await initOrdersFromSupabase();
 
+  // iPhone (READ_ONLY) -> Lager aus Supabase laden und direkt anzeigen
+  if (READ_ONLY) {
+    await loadStockFromSupabase();
+    switchView("stock");
+    return;
+  }
+
+  // Desktop
+  switchView("orders");
+}
