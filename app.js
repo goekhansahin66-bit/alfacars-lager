@@ -132,25 +132,23 @@ async function initOrdersFromSupabase(){
 // =======================================================
 // STOCK (Lager) aus Supabase laden (READ_ONLY / iPhone)
 // =======================================================
-async function loadStockFromSupabase() {
-  if (!READ_ONLY) return;
 
-  if (!supabaseClient) {
-    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden.");
+async function loadStockFromSupabase(){
+  if (!supabaseClient){
+    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden");
     return;
   }
 
   const { data, error } = await supabaseClient
     .from("stock")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("*");
 
-  if (error) {
+  if (error){
     console.error("❌ Fehler beim Laden des Lagers:", error.message);
     return;
   }
 
-  stock = (Array.isArray(data) ? data : []).map((row) => ({
+  const serverStock = (data || []).map(row => ({
     id: row.id,
     created: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
     size: row.size || "",
@@ -158,19 +156,74 @@ async function loadStockFromSupabase() {
     season: row.season || "",
     model: row.model || "",
     dot: row.dot || "",
-    qty: Number(row.qty ?? 0),
+    qty: Number(row.qty || 0),
   }));
 
-  // Cache fürs Handy (optional)
-  try { saveStock(); } catch {}
+  // Merge: lokale Einträge behalten, Supabase überschreibt bei gleicher ID
+  const map = new Map();
+  (stock || []).forEach(it => {
+    if (!it) return;
+    const id = isUuid(it.id) ? it.id : (it.id ? String(it.id) : newUuid());
+    map.set(id, { ...it, id });
+  });
+  serverStock.forEach(it => {
+    const id = isUuid(it.id) ? it.id : (it.id ? String(it.id) : newUuid());
+    map.set(id, { ...it, id });
+  });
 
-  // Falls wir gerade in "Lager" sind: neu rendern
-  try {
-    if (typeof currentView !== "undefined" && currentView === "stock") renderStock();
-  } catch (e) {
-    console.error("❌ Fehler beim Rendern des Lagers:", e);
+  stock = Array.from(map.values());
+  saveStock(); // Cache für mobile/offline
+
+  if (currentView === "stock") renderStock();
+}
+
+async function upsertStockToSupabase(item){
+  if (READ_ONLY) return; // Mobile: nur lesen
+  if (!supabaseClient) return;
+
+  const payload = {
+    id: item.id,
+    size: item.size || "",
+    brand: item.brand || "",
+    season: item.season || "",
+    model: item.model || "",
+    dot: item.dot || "",
+    qty: Number(item.qty || 0),
+  };
+
+  const { error } = await supabaseClient
+    .from("stock")
+    .upsert(payload, { onConflict: "id" });
+
+  if (error){
+    console.error("❌ Lager-Sync (upsert) fehlgeschlagen:", error.message);
   }
 }
+
+async function deleteStockFromSupabase(stockId){
+  if (READ_ONLY) return; // Mobile: nur lesen
+  if (!supabaseClient) return;
+
+  const { error } = await supabaseClient
+    .from("stock")
+    .delete()
+    .eq("id", stockId);
+
+  if (error){
+    console.error("❌ Lager-Sync (delete) fehlgeschlagen:", error.message);
+  }
+}
+
+function syncLocalStockToSupabaseBestEffort(){
+  if (READ_ONLY) return;
+  if (!supabaseClient) return;
+  if (!Array.isArray(stock) || !stock.length) return;
+
+  // keine Blockade der UI – best effort
+  Promise.allSettled(stock.map(it => upsertStockToSupabase(it)));
+}
+
+
 
 async function saveOrderToSupabase(currentOrder){
   // ✅ EINZIGE Speicherroutine für Orders
@@ -370,6 +423,23 @@ let orders = [];
 let customers = JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "[]");
 let stock = JSON.parse(localStorage.getItem(STOCK_KEY) || "[]");
 
+// IDs für Supabase: falls alte (nummerische) IDs existieren, einmalig auf UUID umstellen
+if (Array.isArray(stock)){
+  let changed = false;
+  stock = stock.map(it => {
+    if (!it) return it;
+    if (!isUuid(it.id)){
+      changed = true;
+      return { ...it, id: newUuid() };
+    }
+    return it;
+  });
+  if (changed){
+    try { saveStock(); } catch(e) {}
+  }
+}
+
+
 let currentView = "orders"; // orders | archive | customers | stock
 let editingOrderId = null;
 let preselectCustomerId = null;
@@ -394,6 +464,20 @@ function roAlert(){
   alert("📱 Anzeige-Modus: Änderungen nur am Master-PC möglich.");
 }
 
+
+
+// UUID helpers (für Supabase IDs)
+function isUuid(v){
+  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+function newUuid(){
+  // RFC4122 v4
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15);
+    const v = (c === "x") ? r : ((r & 3) | 8);
+    return v.toString(16);
+  });
+}
 if (READ_ONLY){
   document.documentElement.classList.add("read-only");
   const foot = document.querySelector(".foot .muted");
@@ -1319,14 +1403,19 @@ function stockKey(item){
   return [size,brand,season,model,dot].join("|").toLowerCase();
 }
 
+
 function upsertStock(data){
   const size = normalizeTireSize(data.size);
   if(!size) return alert("Bitte Reifengröße eingeben");
   if(!clean(data.brand)) return alert("Bitte Marke eingeben");
   if(!clean(data.season)) return alert("Bitte Saison wählen");
 
+  // ID: Supabase benötigt stabile UUID
+  let id = data.id;
+  if (!isUuid(id)) id = newUuid();
+
   const item = {
-    id: data.id || Date.now(),
+    id,
     size,
     brand: clean(data.brand),
     season: clean(data.season),
@@ -1336,29 +1425,38 @@ function upsertStock(data){
   };
 
   if (!data.id){
+    // Duplikate vermeiden (gleiche Größe+Marke+Saison+Modell+DOT)
     const k = stockKey(item);
     const existing = stock.find(s => stockKey(s) === k);
     if (existing){
       existing.qty = Math.max(0, Number(existing.qty||0)) + item.qty;
       saveStock();
+      // Sync qty-Update
+      upsertStockToSupabase(existing);
       return existing;
     }
-    stock.unshift({ ...item, created: now() });
+    const createdItem = { ...item, created: now() };
+    stock.unshift(createdItem);
     saveStock();
-    return item;
+    upsertStockToSupabase(createdItem);
+    return createdItem;
   }
 
-  const target = stock.find(s => s.id === data.id);
+  const target = stock.find(s => s.id === data.id || s.id === item.id);
   if (target){
     Object.assign(target, item);
     saveStock();
+    upsertStockToSupabase(target);
     return target;
   }
 
-  stock.unshift({ ...item, created: now() });
+  const createdItem = { ...item, created: now() };
+  stock.unshift(createdItem);
   saveStock();
-  return item;
+  upsertStockToSupabase(createdItem);
+  return createdItem;
 }
+
 
 function renderStock(){
   const q = $("stockSearchInput").value.toLowerCase().trim();
@@ -1402,6 +1500,7 @@ function renderStock(){
       if(confirm("Lagereintrag löschen?")){
         stock = stock.filter(x => x.id !== s.id);
         saveStock();
+        deleteStockFromSupabase(s.id);
         renderStock();
       }
     };
@@ -1415,6 +1514,7 @@ function renderStock(){
       e.stopPropagation();
       s.qty = Math.max(0, Number(s.qty||0) - 1);
       saveStock();
+      upsertStockToSupabase(s);
       renderStock();
     };
     plus.onclick = e=>{
@@ -1422,6 +1522,7 @@ function renderStock(){
       e.stopPropagation();
       s.qty = Math.max(0, Number(s.qty||0) + 1);
       saveStock();
+      upsertStockToSupabase(s);
       renderStock();
     };
     qtyInput.oninput = e=>{
@@ -1430,6 +1531,7 @@ function renderStock(){
       const v = Math.max(0, Number(qtyInput.value||0));
       s.qty = v;
       saveStock();
+      upsertStockToSupabase(s);
       renderStock();
     };
 
@@ -1742,16 +1844,16 @@ async function initApp() {
   // Orders aus Supabase laden
   await initOrdersFromSupabase();
 
-  // iPhone (READ_ONLY) -> Lager aus Supabase laden und direkt anzeigen
-  if (READ_ONLY) {
-    await loadStockFromSupabase();
-    switchView("stock");
-    return;
-  }
+  // Lager aus Supabase laden (mobile + desktop)
+  try { await loadStockFromSupabase(); } catch(e) {}
 
-  // Desktop
+  // Desktop: lokale Einträge (falls vorhanden) nach Supabase spiegeln
+  syncLocalStockToSupabaseBestEffort();
+
+  // Startansicht: Bestellungen
   switchView("orders");
 }
+
 
 // Start der App – GENAU EINMAL
 initApp();
