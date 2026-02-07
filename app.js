@@ -1,6 +1,5 @@
 /* ================================
    SUPABASE – INITIALISIERUNG (TEST)
-================================ */
 
 let supabaseClient = null;
 
@@ -32,7 +31,6 @@ let supabaseClient = null;
    SUPABASE – ORDERS (SOURCE OF TRUTH)
    - Orders werden ausschließlich in Supabase gespeichert.
    - localStorage wird NICHT mehr für Orders genutzt.
-   ========================================================= */
 
 // ✅ Tabelle (erwartet): orders
 // Spalten (mindestens): id, created_at, status, customerId, size, brand, season, qty, unit, deposit, rims, note, orderSource
@@ -65,7 +63,6 @@ function mapOrderForDb(o){
 
 /* ================================
    GLOBAL FIXES – CUSTOMER CACHE
-   ================================ */
 
 // Global customer cache used by normalizeOrderFromDb
 let customersById = new Map();
@@ -346,7 +343,6 @@ async function updateOrderStatusInSupabase(orderId, newStatus){
 
 /* =========================================================
    STORAGE & KONSTANTEN
-   ========================================================= */
 const STORAGE_KEY = "alfacars_orders_final";
 const CUSTOMER_KEY = "alfacars_customers_final";
 const STOCK_KEY = "alfacars_stock_final_v1";
@@ -419,7 +415,6 @@ const $ = id => document.getElementById(id);
    READ-ONLY MODUS (iPhone / optional ?ro=1)
    - iPhone sieht nur Anzeige (keine Änderungen möglich)
    - Master-PC arbeitet normal
-   ========================================================= */
 const READ_ONLY = (
   /iphone|ipad|ipod/i.test(navigator.userAgent) ||
   (new URLSearchParams(location.search).get("ro") === "1")
@@ -438,7 +433,6 @@ if (READ_ONLY){
 
 /* =========================================================
    UTILS
-   ========================================================= */
 // ⚠️ DEPRECATED: Orders werden ausschließlich in Supabase gespeichert.
 function saveOrders() { /* no-op */ }
 function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); }
@@ -475,7 +469,6 @@ function qtyClass(q){
    - Offline-safe
    - Erzeugt eine .xls Arbeitsmappe (Excel XML 2003)
    - Enthält Tabs: Bestellungen, Kunden, Lager
-   ========================================================= */
 
 function pad2(n){ return String(n).padStart(2,"0"); }
 function tsYMD(){
@@ -783,7 +776,6 @@ function exportExcelWorkbook(){
 
 /* =========================================================
    VIEW STEUERUNG
-   ========================================================= */
 function switchView(view) {
   currentView = view;
 
@@ -817,8 +809,6 @@ function switchView(view) {
 
 /* =========================================================
    MARKEN
-   ========================================================= */
-   ========================================================= */
 function renderBrands() {
   // FIX: defensive – falls einzelne Elemente im HTML fehlen, nicht crashen
   const a = $("brandList");
@@ -829,7 +819,6 @@ function renderBrands() {
 
 /* =========================================================
    KUNDEN – (keine doppelten, Telefon oder E-Mail Pflicht)
-   ========================================================= */
 function findCustomer(phone, email, plate){
   const p = phoneClean(phone);
   const e = emailClean(email);
@@ -898,7 +887,6 @@ function upsertCustomer(data){
 
 /* =========================================================
    RENDER: BESTELLUNGEN
-   ========================================================= */
 function renderOrders(){
   const q = $("searchInput").value.toLowerCase().trim();
 
@@ -925,7 +913,6 @@ function renderOrders(){
 
 /* =========================================================
    RENDER: ARCHIV
-   ========================================================= */
 function renderArchive(){
   const q = $("searchInput").value.toLowerCase().trim();
   $("col-Archiv").innerHTML="";
@@ -962,7 +949,6 @@ function renderArchive(){
 
 /* =========================================================
    KARTEN: BESTELLUNG
-   ========================================================= */
 function buildOrderCard(o,c,withStatus){
   const total = o.qty * o.unit;
   const rest = Math.max(total - o.deposit,0);
@@ -1027,7 +1013,6 @@ function buildOrderCard(o,c,withStatus){
 
 /* =========================================================
    RENDER: KUNDEN
-   ========================================================= */
 function renderCustomers(){
   const q = $("customerSearchInput").value.toLowerCase().trim();
   $("customerList").innerHTML="";
@@ -1076,7 +1061,6 @@ function renderCustomers(){
 
 /* =========================================================
    REICHWEITE – Auswertung (Ort + Kanal)
-   ========================================================= */
 function renderReachability(){
   const box = $("reachBox");
   if (!box) return;
@@ -1121,7 +1105,6 @@ function renderReachability(){
 
 /* =========================================================
    MODAL: BESTELLUNG
-   ========================================================= */
 function openNewOrder(){
   if (READ_ONLY) return roAlert();
   editingOrderId=null;
@@ -1303,7 +1286,6 @@ function deleteOrder(){
 
 /* =========================================================
    MODAL: KUNDE
-   ========================================================= */
 function openCustomerModal(id){
   if (READ_ONLY) return roAlert();
   editingCustomerId = id;
@@ -1372,7 +1354,6 @@ function deleteCustomer(){
    SUPABASE – STOCK (READ ONLY / Mobile)
    - Mobile lädt Lager direkt aus Supabase (Anzeige-Modus)
    - PC nutzt aktuell weiterhin localStorage für Lager (Editing)
-   ========================================================= */
 
 async function loadStockFromSupabase() {
   if (!READ_ONLY) return;
@@ -1409,7 +1390,6 @@ async function loadStockFromSupabase() {
 
 /* =========================================================
    LAGER – Bestand
-   ========================================================= */
 function stockKey(item){
   const size = normalizeTireSize(item.size);
   const brand = clean(item.brand);
@@ -1657,7 +1637,6 @@ function renderModelSuggestions(){
 
 /* =========================================================
    TAGESABSCHLUSS / BESTELLUNG (bleibt wie vorher)
-   ========================================================= */
 function buildNeedList(){
   return stock
     .map(s => ({ s, need: Math.max(0, TARGET_QTY - Number(s.qty||0)) }))
@@ -1748,7 +1727,6 @@ function exportDayCloseOrder(){
 
 /* =========================================================
    EVENTS
-   ========================================================= */
 
 function overrideReadOnlyUI(){
   // Buttons, die Änderungen machen, auf Anzeige-Modus blockieren
@@ -1842,7 +1820,6 @@ if (READ_ONLY) overrideReadOnlyUI();
 
 /* =========================================================
    AUTO-REFRESH – MOBILE LAGER (READ_ONLY)
-   ========================================================= */
 let stockAutoRefreshTimer = null;
 
 function startStockAutoRefresh(){
@@ -1882,7 +1859,6 @@ function stopStockAutoRefresh(){
 
 /* =========================================================
    INIT
-   ========================================================= */
 renderBrands();
 
 async function initApp() {
@@ -1901,4 +1877,3 @@ async function initApp() {
 }
 
 initApp();
-
