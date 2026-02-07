@@ -63,37 +63,39 @@ function mapOrderForDb(o){
 
 // ✅ DB → UI Normalisierung (created Feld für Anzeige beibehalten, aber Quelle ist created_at)
 function normalizeOrderFromDb(row) {
-  if (!row || typeof row !== "object") return row;
+  // row may come with or without joined customer object.
+  const cid = row ? (row.customerid || row.customer_id || row.customerId) : null;
+  const joinedCustomer = row && row.customers ? row.customers : null;
+  const cachedCustomer = (cid && customersById && customersById.get) ? customersById.get(cid) : null;
+  const listCustomer = cid ? (customers.find(c => c && c.id === cid) || null) : null;
 
-  const createdDisplay =
-    (row.created && String(row.created).trim())
-      ? row.created
-      : (row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "");
-
-  const customerId =
-    row.customerid ??
-    row.customer_id ??
-    row.customerId ??
-    null;
-
-  const customer = row.customers || {};
+  const customer = joinedCustomer || cachedCustomer || listCustomer || {};
 
   return {
-    ...row,
-    customerId,
-    created: createdDisplay,
-
-    // ✅ Kunden-Daten für UI bereitstellen
-    customerName: customer.name || "Unbekannter Kunde",
-    customerPhone: customer.phone || "",
-    licensePlate: customer.license_plate || "",
-    customerEmail: customer.email || ""
+    id: row.id,
+    status: row.status || "ordered",
+    createdAt: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
+    customerId: cid || "",
+    customerName: customer.name || row.customername || row.customer_name || "Unbekannter Kunde",
+    customerPhone: customer.phone || row.customerphone || row.customer_phone || "",
+    licensePlate: customer.license_plate || row.license_plate || row.licensePlate || "",
+    customerEmail: customer.email || row.customeremail || row.customer_email || "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    qty: Number(row.qty || 0),
+    unit: Number(row.unit || 0),
+    deposit: Number(row.deposit || 0),
+    rims: row.rims || "",
+    note: row.note || "",
+    orderSource: row.order_source || "supabase"
   };
 }
 
 
 
-async function initOrdersFromSupabase(){
+async function initOrdersFromSupabase() {
   if (!supabaseClient){
     console.warn("⚠️ Supabase nicht verbunden – Orders können nicht geladen werden.");
     orders = [];
@@ -103,20 +105,8 @@ async function initOrdersFromSupabase(){
   // 1) Orders aus Supabase laden
   const { data, error } = await supabaseClient
     .from(SUPABASE_ORDERS_TABLE)
-    .select(`
-  *,
-  customers:customerid (
-    id,
-    name,
-    phone,
-    license_plate,
-    email
-  )
-`)
-
-
-
-    .order("created_at", { ascending: false }); // FIX: created_at statt created
+      .select("*")
+      .order("created_at", { ascending: false }); // FIX: created_at statt created
 
   if (error){
     console.error("❌ Fehler beim Laden der Orders:", error.message);
@@ -125,104 +115,58 @@ async function initOrdersFromSupabase(){
     return;
   }
 
+  // 2) Kunden für die geladenen Orders holen (robust, unabhängig von FK-Join)
+  try {
+    const ids = Array.isArray(data)
+      ? [...new Set(data.map(r => r && (r.customerid || r.customer_id || r.customerId)).filter(Boolean))]
+      : [];
+    if (ids.length) {
+      const { data: cdata, error: cerr } = await supabaseClient
+        .from("customers")
+        .select("id,name,phone,license_plate,email")
+        .in("id", ids);
+
+      if (!cerr && Array.isArray(cdata)) {
+        cdata.forEach(upsertCustomerInMemory);
+        // optional: persist customers for offline fallback
+        localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers));
+      }
+    }
+  } catch (_) {}
+
   orders = Array.isArray(data) ? data.map(normalizeOrderFromDb) : [];
 }
 
-
-// =======================================================
-// STOCK (Lager) aus Supabase laden (READ_ONLY / iPhone)
-// =======================================================
-
-async function loadStockFromSupabase(){
-  if (!supabaseClient){
-    console.warn("⚠️ Supabase nicht verbunden – Lager kann nicht geladen werden");
+async function initCustomersFromSupabase() {
+  if (!supabaseClient) {
+    console.warn("⚠️ Supabase nicht verbunden – Kunden können nicht geladen werden.");
     return;
   }
 
   const { data, error } = await supabaseClient
-    .from("stock")
-    .select("*");
+    .from("customers")
+    .select("id,name,phone,license_plate,email,created_at")
+    .order("created_at", { ascending: false });
 
-  if (error){
-    console.error("❌ Fehler beim Laden des Lagers:", error.message);
+  if (error) {
+    console.error("❌ Fehler beim Laden der Kunden:", error.message);
     return;
   }
 
-  const serverStock = (data || []).map(row => ({
-    id: row.id,
-    created: row.created_at ? new Date(row.created_at).toLocaleString("de-DE") : "",
-    size: row.size || "",
-    brand: row.brand || "",
-    season: row.season || "",
-    model: row.model || "",
-    dot: row.dot || "",
-    qty: Number(row.qty || 0),
-  }));
+  customers = Array.isArray(data)
+    ? data.map(c => ({
+        id: c.id,
+        name: c.name || "",
+        phone: c.phone || "",
+        license_plate: c.license_plate || "",
+        email: c.email || "",
+        created_at: c.created_at || null
+      }))
+    : [];
 
-  // Merge: lokale Einträge behalten, Supabase überschreibt bei gleicher ID
-  const map = new Map();
-  (stock || []).forEach(it => {
-    if (!it) return;
-    const id = isUuid(it.id) ? it.id : (it.id ? String(it.id) : newUuid());
-    map.set(id, { ...it, id });
-  });
-  serverStock.forEach(it => {
-    const id = isUuid(it.id) ? it.id : (it.id ? String(it.id) : newUuid());
-    map.set(id, { ...it, id });
-  });
-
-  stock = Array.from(map.values());
-  saveStock(); // Cache für mobile/offline
-
-  if (currentView === "stock") renderStock();
+  rebuildCustomersIndex();
+  localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); // offline fallback
 }
-
-async function upsertStockToSupabase(item){
-  if (READ_ONLY) return; // Mobile: nur lesen
-  if (!supabaseClient) return;
-
-  const payload = {
-    id: item.id,
-    size: item.size || "",
-    brand: item.brand || "",
-    season: item.season || "",
-    model: item.model || "",
-    dot: item.dot || "",
-    qty: Number(item.qty || 0),
-  };
-
-  const { error } = await supabaseClient
-    .from("stock")
-    .upsert(payload, { onConflict: "id" });
-
-  if (error){
-    console.error("❌ Lager-Sync (upsert) fehlgeschlagen:", error.message);
-  }
-}
-
-async function deleteStockFromSupabase(stockId){
-  if (READ_ONLY) return; // Mobile: nur lesen
-  if (!supabaseClient) return;
-
-  const { error } = await supabaseClient
-    .from("stock")
-    .delete()
-    .eq("id", stockId);
-
-  if (error){
-    console.error("❌ Lager-Sync (delete) fehlgeschlagen:", error.message);
-  }
-}
-
-function syncLocalStockToSupabaseBestEffort(){
-  if (READ_ONLY) return;
-  if (!supabaseClient) return;
-  if (!Array.isArray(stock) || !stock.length) return;
-
-  // keine Blockade der UI – best effort
-  Promise.allSettled(stock.map(it => upsertStockToSupabase(it)));
-}
-
 
 
 async function saveOrderToSupabase(currentOrder){
@@ -291,7 +235,16 @@ async function saveOrderToSupabase(currentOrder){
   // ✅ Bestellung muss auf die UUID zeigen
   currentOrder.customerId = customer.id;
 
-  const payload = mapOrderForDb(currentOrder);
+  
+    // Customer-Cache aktualisieren (damit UI sofort Name/Telefon/Kennzeichen zeigt)
+    upsertCustomerInMemory({
+      id: customer.id,
+      name: (customer.name || currentOrder.customerName || "").trim(),
+      phone: (customer.phone || currentOrder.customerPhone || "").trim(),
+      license_plate: (customer.license_plate || currentOrder.licensePlate || "").trim(),
+      email: (customer.email || currentOrder.customerEmail || "").trim()
+    });
+const payload = mapOrderForDb(currentOrder);
   payload.customerid = customer.id;
   delete payload.customer_id;
 
@@ -423,23 +376,6 @@ let orders = [];
 let customers = JSON.parse(localStorage.getItem(CUSTOMER_KEY) || "[]");
 let stock = JSON.parse(localStorage.getItem(STOCK_KEY) || "[]");
 
-// IDs für Supabase: falls alte (nummerische) IDs existieren, einmalig auf UUID umstellen
-if (Array.isArray(stock)){
-  let changed = false;
-  stock = stock.map(it => {
-    if (!it) return it;
-    if (!isUuid(it.id)){
-      changed = true;
-      return { ...it, id: newUuid() };
-    }
-    return it;
-  });
-  if (changed){
-    try { saveStock(); } catch(e) {}
-  }
-}
-
-
 let currentView = "orders"; // orders | archive | customers | stock
 let editingOrderId = null;
 let preselectCustomerId = null;
@@ -464,20 +400,6 @@ function roAlert(){
   alert("📱 Anzeige-Modus: Änderungen nur am Master-PC möglich.");
 }
 
-
-
-// UUID helpers (für Supabase IDs)
-function isUuid(v){
-  return typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-function newUuid(){
-  // RFC4122 v4
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
-    const r = (crypto.getRandomValues(new Uint8Array(1))[0] & 15);
-    const v = (c === "x") ? r : ((r & 3) | 8);
-    return v.toString(16);
-  });
-}
 if (READ_ONLY){
   document.documentElement.classList.add("read-only");
   const foot = document.querySelector(".foot .muted");
@@ -687,6 +609,42 @@ function findCustomerById(id){
 // ✅ NEU: Kunde für eine Order auflösen
 // - Legacy: localStorage-Kunden (Number-IDs)
 // - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
+
+
+// ✅ NEU: Kunde für eine Order auflösen
+// - Legacy: localStorage-Kunden (Number-IDs)
+// - Supabase: Join-Felder (customerName/customerPhone/licensePlate/customerEmail)
+function resolveCustomerForOrder(o){
+  const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
+
+  const local = id ? findCustomerById(id) : null;
+  if (local) return local;
+
+  return {
+    id,
+    name: o?.customerName || "Unbekannter Kunde",
+    phone: o?.customerPhone || "",
+    email: o?.customerEmail || "",
+    plate: o?.licensePlate || ""
+  };
+}
+
+
+// ✅ NEU: Kunde für Order auflösen (Supabase JOIN zuerst, localStorage nur Fallback)
 function resolveCustomerForOrder(o){
   const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
 
@@ -1403,19 +1361,14 @@ function stockKey(item){
   return [size,brand,season,model,dot].join("|").toLowerCase();
 }
 
-
 function upsertStock(data){
   const size = normalizeTireSize(data.size);
   if(!size) return alert("Bitte Reifengröße eingeben");
   if(!clean(data.brand)) return alert("Bitte Marke eingeben");
   if(!clean(data.season)) return alert("Bitte Saison wählen");
 
-  // ID: Supabase benötigt stabile UUID
-  let id = data.id;
-  if (!isUuid(id)) id = newUuid();
-
   const item = {
-    id,
+    id: data.id || Date.now(),
     size,
     brand: clean(data.brand),
     season: clean(data.season),
@@ -1425,38 +1378,29 @@ function upsertStock(data){
   };
 
   if (!data.id){
-    // Duplikate vermeiden (gleiche Größe+Marke+Saison+Modell+DOT)
     const k = stockKey(item);
     const existing = stock.find(s => stockKey(s) === k);
     if (existing){
       existing.qty = Math.max(0, Number(existing.qty||0)) + item.qty;
       saveStock();
-      // Sync qty-Update
-      upsertStockToSupabase(existing);
       return existing;
     }
-    const createdItem = { ...item, created: now() };
-    stock.unshift(createdItem);
+    stock.unshift({ ...item, created: now() });
     saveStock();
-    upsertStockToSupabase(createdItem);
-    return createdItem;
+    return item;
   }
 
-  const target = stock.find(s => s.id === data.id || s.id === item.id);
+  const target = stock.find(s => s.id === data.id);
   if (target){
     Object.assign(target, item);
     saveStock();
-    upsertStockToSupabase(target);
     return target;
   }
 
-  const createdItem = { ...item, created: now() };
-  stock.unshift(createdItem);
+  stock.unshift({ ...item, created: now() });
   saveStock();
-  upsertStockToSupabase(createdItem);
-  return createdItem;
+  return item;
 }
-
 
 function renderStock(){
   const q = $("stockSearchInput").value.toLowerCase().trim();
@@ -1500,7 +1444,6 @@ function renderStock(){
       if(confirm("Lagereintrag löschen?")){
         stock = stock.filter(x => x.id !== s.id);
         saveStock();
-        deleteStockFromSupabase(s.id);
         renderStock();
       }
     };
@@ -1514,7 +1457,6 @@ function renderStock(){
       e.stopPropagation();
       s.qty = Math.max(0, Number(s.qty||0) - 1);
       saveStock();
-      upsertStockToSupabase(s);
       renderStock();
     };
     plus.onclick = e=>{
@@ -1522,7 +1464,6 @@ function renderStock(){
       e.stopPropagation();
       s.qty = Math.max(0, Number(s.qty||0) + 1);
       saveStock();
-      upsertStockToSupabase(s);
       renderStock();
     };
     qtyInput.oninput = e=>{
@@ -1531,7 +1472,6 @@ function renderStock(){
       const v = Math.max(0, Number(qtyInput.value||0));
       s.qty = v;
       saveStock();
-      upsertStockToSupabase(s);
       renderStock();
     };
 
@@ -1840,20 +1780,9 @@ if (READ_ONLY) overrideReadOnlyUI();
 renderBrands();
 
 // ✅ Orders initial aus Supabase laden (ohne Reload nötig)
-async function initApp() {
-  // Orders aus Supabase laden
-  await initOrdersFromSupabase();
+initApp();
 
-  // Lager aus Supabase laden (mobile + desktop)
-  try { await loadStockFromSupabase(); } catch(e) {}
-
-  // Desktop: lokale Einträge (falls vorhanden) nach Supabase spiegeln
-  syncLocalStockToSupabaseBestEffort();
-
-  // Startansicht: Bestellungen
+async function initApp(){
+  await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
   switchView("orders");
 }
-
-
-// Start der App – GENAU EINMAL
-initApp();
