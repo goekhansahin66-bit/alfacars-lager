@@ -1832,19 +1832,36 @@ let stockAutoRefreshTimer = null;
 
 function startStockAutoRefresh(){
   if (!READ_ONLY) return;
-  if (stockAutoRefreshTimer) clearInterval(stockAutoRefreshTimer);
 
-  // alle 30 Sekunden neu laden
-  stockAutoRefreshTimer = setInterval(async () => {
-    await loadStockFromSupabase();
-  }, 30000);
+  stopStockAutoRefresh();
+
+  const tick = async () => {
+    try { await loadStockFromSupabase(); } catch(_) {}
+    // iOS kann setInterval stark drosseln – setTimeout Loop ist stabiler
+    stockAutoRefreshTimer = setTimeout(tick, 30000);
+  };
+
+  // sofort einmal nachladen + dann Loop
+  tick();
+
+  // Wenn Tab wieder sichtbar wird: sofort aktualisieren
+  document.addEventListener("visibilitychange", () => {
+    if (!READ_ONLY) return;
+    if (document.visibilityState === "visible") loadStockFromSupabase();
+  });
+
+  window.addEventListener("focus", () => {
+    if (!READ_ONLY) return;
+    loadStockFromSupabase();
+  });
 }
 
 function stopStockAutoRefresh(){
   if (stockAutoRefreshTimer){
-    clearInterval(stockAutoRefreshTimer);
+    clearTimeout(stockAutoRefreshTimer);
     stockAutoRefreshTimer = null;
   }
+}
 }
 
 
@@ -1859,6 +1876,8 @@ function forceShowStockOnMobile(){
     stockBoard.classList.remove("hidden");
     stockBoard.style.display = "block";
   }
+  // Tabs NICHT verstecken – Mobile soll zwischen Übersicht (Orders) und Lager wechseln können
+}
   const tabs = document.querySelector(".tabs");
   if (tabs) tabs.style.display = "none";
 }
@@ -1874,6 +1893,7 @@ async function initApp() {
   await initOrdersFromSupabase();
 
   if (READ_ONLY) {
+    // Mobile READ_ONLY: Start im Lager, aber Übersicht (Orders) bleibt erreichbar
     await loadStockFromSupabase();
     startStockAutoRefresh();
     switchView("stock");
