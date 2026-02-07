@@ -1384,20 +1384,6 @@ stock = []; // 🔴 WICHTIG: alten Zustand löschen
   }
 
 
-async function syncStockToSupabase() {
-  if (READ_ONLY) return;
-  if (!supabaseClient) return;
-
-  const rows = stock.map(s => ({
-    id: s.id,
-    size: s.size,
-    brand: s.brand,
-    season: s.season,
-    model: s.model || null,
-    dot: s.dot || null,
-    qty: Number(s.qty || 0)
-  }));
-
   const { error } = await supabaseClient
     .from("stock")
     .upsert(rows, { onConflict: "id" });
@@ -1890,4 +1876,18 @@ async function initApp() {
 }
 
 initApp();
+
+async function syncStockToSupabase() {
+  if (READ_ONLY) return;
+  if (!supabaseClient) return;
+
+  const rows = stock.map(s => ({
+    id: s.id,
+    size: s.size,
+    brand: s.brand,
+    season: s.season,
+    model: s.model || null,
+    dot: s.dot || null,
+    qty: Number(s.qty || 0)
+  }));
 
