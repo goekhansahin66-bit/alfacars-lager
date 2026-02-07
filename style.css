@@ -454,3 +454,10 @@ body{
 .read-only .small-muted{
   display:none;
 }
+/* ✅ FIX: Mobile Höhe für Boards */
+@supports (-webkit-touch-callout: none) {
+  .board {
+    min-height: calc(100svh - 140px);
+    height: auto;
+  }
+}
