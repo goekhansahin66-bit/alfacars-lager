@@ -1701,10 +1701,15 @@ if (READ_ONLY) overrideReadOnlyUI();
    ========================================================= */
 renderBrands();
 
+// =====================================
+// INIT
+// =====================================
+
 async function initApp(){
   await initOrdersFromSupabase(); // lädt orders[] (Quelle der Wahrheit: Supabase)
   switchView("orders");
 }
 
-// ✅ Orders initial aus Supabase laden (ohne Reload nötig)
+// Start der App (GENAU EINMAL)
 initApp();
+
