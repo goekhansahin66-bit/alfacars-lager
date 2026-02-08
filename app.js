@@ -796,7 +796,8 @@ function switchView(view) {
   $("stockBoard").classList.toggle("hidden", view !== "stock");
 
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  document.querySelector(`[data-tab="${view}"]`).classList.add("active");
+  const activeTab = document.querySelector(`[data-tab="${view}"]`);
+  if (activeTab) activeTab.classList.add("active");
 
   if (view === "orders") renderOrders();
   if (view === "archive") renderArchive();
@@ -1381,31 +1382,6 @@ async function loadStockFromSupabase() {
     return;
   }
 
-  const { data, error } = await supabaseClient
-    .from("stock")
-    .select("*")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Fehler beim Laden des Lagers:", error.message);
-    return;
-  }
-
-  stock = (data || []).map(row => ({
-    id: row.id,
-    created: row.created_at
-      ? new Date(row.created_at).toLocaleString("de-DE")
-      : "",
-    size: row.size || "",
-    brand: row.brand || "",
-    season: row.season || "",
-    model: row.model || "",
-    dot: row.dot || "",
-    qty: Number(row.qty || 0)
-  }));
-
-  renderStock();
-}
   const { data, error } = await supabaseClient
     .from("stock")
     .select("*");
