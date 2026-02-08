@@ -461,3 +461,29 @@ body{
     height: auto;
   }
 }
+
+
+/* ================================
+   MOBILE FIXES (iPhone / Android)
+================================ */
+@media (max-width: 900px) {
+  .top-actions{
+    width:100%;
+    flex-wrap:wrap;
+    justify-content:flex-start;
+  }
+  .search{
+    width:100%;
+    flex:1 1 100%;
+  }
+  .board{
+    grid-template-columns: 1fr;
+  }
+  .card, .btn, .pill{
+    touch-action: manipulation;
+  }
+  .modal-card{
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+}
