@@ -584,7 +584,7 @@ let editingStockId = null;
 const $ = id => document.getElementById(id);
 
 // Mobile-safe tap helper (iOS sometimes drops click on fast taps inside scroll containers)
-function bindTap(el, handler){
+function bindSafeTap(el, handler){
   if (!el) return;
   let lastTouch = 0;
 
@@ -1171,7 +1171,7 @@ function buildOrderCard(o,c,withStatus){
 
   const card = document.createElement("div");
   card.className = "card status-"+o.status.toLowerCase();
-  if (!READ_ONLY) bindTap(card, (e)=>{
+  if (!READ_ONLY) bindSafeTap(card, (e)=>{
     // ignore taps on inner buttons
     if (e && e.target && e.target.closest && e.target.closest('button')) return;
     openEditOrder(o.id);
@@ -1676,7 +1676,7 @@ function renderStock(){
   filtered.forEach(s=>{
     const card=document.createElement("div");
     card.className="card";
-    if (!READ_ONLY) bindTap(card, (e)=>{
+    if (!READ_ONLY) bindSafeTap(card, (e)=>{
       if (e && e.target && e.target.closest && e.target.closest('button')) return;
       openEditStock(s.id);
     });
