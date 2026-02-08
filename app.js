@@ -1892,11 +1892,6 @@ if (READ_ONLY) overrideReadOnlyUI();
   });
 });
 
-(()=>{ const el=$("f_size"); if(!el){ console.warn("⚠️ Element fehlt: f_size"); return; }
-  el.addEventListener("input",()=>{
-    el.value = normalizeTireSize(el.value);
-  });
-})();
 
 (()=>{ const el=$("s_size"); if(!el){ console.warn("⚠️ Element fehlt: s_size"); return; }
   el.addEventListener("input",()=>{
