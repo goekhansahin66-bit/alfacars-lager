@@ -492,41 +492,32 @@ body{
 
 
 
-/* =========================
-   MOBILE UX FIX (AUTO)
-   ========================= */
-@media (max-width: 768px) {
-  .card {
-    cursor: default;
-    touch-action: pan-y;
-  }
-
-  .card:hover {
-    transform: none;
-  }
-
-  .btn {
-    padding: 12px 14px;
-    font-size: 15px;
-  }
-
-  .col-body {
-    padding-bottom: 40px;
-  }
-
-  * {
-    -webkit-user-select: none;
-    user-select: none;
-  }
-
-  input, textarea {
-    -webkit-user-select: text;
-    user-select: text;
-  }
+/* =========================================
+   FIX: MODAL SCROLL (PC + HANDY)
+   ========================================= */
+.modal{
+  align-items:flex-start;
 }
 
-@media (hover: hover) {
-  .card:hover {
-    transform: translateY(-2px);
+.modal-card{
+  max-height:92vh;
+  display:flex;
+  flex-direction:column;
+}
+
+.modal-card .form-grid,
+.modal-card .calc-row,
+.modal-card .modal-actions,
+.modal-card .modal-foot{
+  overflow-y:auto;
+}
+
+/* =========================================
+   FIX: MOBILE TOUCH SAFETY
+   ========================================= */
+@media (max-width:768px){
+  .card{
+    cursor:default;
+    touch-action: pan-y;
   }
 }
