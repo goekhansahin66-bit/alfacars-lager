@@ -1568,7 +1568,7 @@ function deleteCustomer(){
    - PC nutzt aktuell weiterhin localStorage für Lager (Editing)
    ========================================================= */
 
-async async function loadStockFromSupabase() {
+async function loadStockFromSupabase() {
   if (!supabaseClient) {
     console.warn("Supabase nicht verbunden – Lager kann nicht geladen werden");
     return;
