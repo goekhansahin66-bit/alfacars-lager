@@ -790,29 +790,21 @@ function exportExcelWorkbook(){
 function switchView(view) {
   currentView = view;
 
-  const ordersBoard   = document.getElementById("ordersBoard");
-  const archiveBoard  = document.getElementById("archiveBoard");
-  const customerBoard = document.getElementById("customerBoard");
-  const stockBoard    = document.getElementById("stockBoard");
+  $("board").classList.toggle("hidden", view !== "orders");
+  $("archiveBoard").classList.toggle("hidden", view !== "archive");
+  $("customerBoard").classList.toggle("hidden", view !== "customers");
+  $("stockBoard").classList.toggle("hidden", view !== "stock");
 
-  if (ordersBoard)   ordersBoard.classList.toggle("hidden", view !== "orders");
-  if (archiveBoard)  archiveBoard.classList.toggle("hidden", view !== "archive");
-  if (customerBoard) customerBoard.classList.toggle("hidden", view !== "customers");
-  if (stockBoard)    stockBoard.classList.toggle("hidden", view !== "stock");
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelector(`[data-tab="${view}"]`).classList.add("active");
 
-  document.querySelectorAll(".tab").forEach(t => {
-    t.classList.toggle("active", t.dataset.tab === view);
-  });
+  if (view === "orders") renderOrders();
+  if (view === "archive") renderArchive();
+  if (view === "customers") renderCustomers();
 
-  if (view === "orders") {
-    renderOrders();
-  } else if (view === "archive") {
-    renderArchive();
-  } else if (view === "customers") {
-    renderCustomers();
-  } else if (view === "stock") {
-    if (typeof READ_ONLY !== "undefined" && READ_ONLY) {
-      if (typeof loadStockFromSupabase === "function") loadStockFromSupabase();
+  if (view === "stock") {
+    if (READ_ONLY) {
+      loadStockFromSupabase();
     } else {
       renderStock();
     }
@@ -1389,6 +1381,31 @@ async function loadStockFromSupabase() {
     return;
   }
 
+  const { data, error } = await supabaseClient
+    .from("stock")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Fehler beim Laden des Lagers:", error.message);
+    return;
+  }
+
+  stock = (data || []).map(row => ({
+    id: row.id,
+    created: row.created_at
+      ? new Date(row.created_at).toLocaleString("de-DE")
+      : "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    dot: row.dot || "",
+    qty: Number(row.qty || 0)
+  }));
+
+  renderStock();
+}
   const { data, error } = await supabaseClient
     .from("stock")
     .select("*");
