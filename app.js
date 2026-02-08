@@ -9,7 +9,7 @@ let supabaseClient = null;
   // → wir lesen sie hier bewusst NICHT über import.meta
 
   const url = "https://vocyuvgkbswoevikbbxa.supabase.co";
-  const anonKey = "sb_publishable_vnWOxf18o0lCy9d1HfJGHw_xMxBa8m_";
+  const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZvY3l1dmdrYnN3b2V2aWtiYnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyOTU1NzMsImV4cCI6MjA4NTg3MTU3M30.S8ROC7E3xaX2H6pv40p8rL1zDMQX89bNavz-GRfXKQI";
 
   if (!url || !anonKey) {
     console.warn("⚠️ Supabase Konfiguration fehlt");
