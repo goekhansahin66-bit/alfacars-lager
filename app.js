@@ -9,7 +9,7 @@ let supabaseClient = null;
   // → wir lesen sie hier bewusst NICHT über import.meta
 
   const url = "https://vocyuvgkbswoevikbbxa.supabase.co";
-  const anonKey = "sb_publishable_vnWOxf18o0lCy9d1HfJGHw_xMxBa8m_";
+  const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZvY3l1dmdrYnN3b2V2aWtiYnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyOTU1NzMsImV4cCI6MjA4NTg3MTU3M30.S8ROC7E3xaX2H6pv40p8rL1zDMQX89bNavz-GRfXKQI";
 
   if (!url || !anonKey) {
     console.warn("⚠️ Supabase Konfiguration fehlt");
@@ -24,6 +24,18 @@ let supabaseClient = null;
   supabaseClient = window.supabase.createClient(url, anonKey);
   console.log("✅ Supabase verbunden");
 })()
+
+
+/* =========================================================
+   AUTH STUBS (OHNE LOGIN)
+   ========================================================= */
+function ensureAuthBar(){ /* no-op */ }
+async function refreshSession(){ return null; }
+async function requireLoginOrThrow(){ return true; }
+function openLoginModal(){ /* no-op */ }
+function updateAuthUi(){ /* no-op */ }
+
+
 
 /* ================================
    SUPABASE AUTH – LOGIN (NEU)
@@ -2045,8 +2057,7 @@ if (READ_ONLY) overrideReadOnlyUI();
 /* =========================================================
    INIT
    ========================================================= */
-ensureAuthBar();
-refreshSession();
+// Auth entfernt (ohne Login)
 renderBrands();
 
 async function initApp() {
@@ -2063,10 +2074,7 @@ initApp();
 
 async function syncStockToSupabase() {
   if (!supabaseClient) return;
-
-  // Schreiben nur mit Login (RLS: authenticated)
-  try { await requireLoginOrThrow(); } catch(e) { return; }
-
+  // Ohne Login: Schreiben ist erlaubt (RLS AUS)
   // Alte lokale IDs (Timestamp) auf UUID migrieren, bevor wir schreiben
   stock.forEach(s=>{
     if(!isUuid(s.id)) s.id = newUuid();
