@@ -481,7 +481,7 @@ function saveOrders() { /* no-op */ }
 function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); }
 function saveStock() {
   localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
-  syncStockToSupabase(); // 🔄 AUTO-SYNC
+  // syncStockToSupabase(); // FIX: deaktiviert wegen UUID-Schutz // 🔄 AUTO-SYNC
 }
 function saveAll(){ saveOrders(); saveCustomers(); saveStock(); }
 
@@ -1482,7 +1482,7 @@ function upsertStock(data){
   if(!clean(data.season)) return alert("Bitte Saison wählen");
 
   const item = {
-    id: data.id || Date.now(),
+    id: data.id || null // FIX: keine Timestamp-ID für Supabase,
     size,
     brand: clean(data.brand),
     season: clean(data.season),
