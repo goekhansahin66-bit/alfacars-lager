@@ -1923,13 +1923,12 @@ async function initApp() {
 
 initApp();
 
-async async function syncStockToSupabase() {
+/* syncStockToSupabase deaktiviert (Fix Syntax + UUID)
+
+async function syncStockToSupabase() {
   if (!supabaseClient) return;
 
-  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const isUuid = (v) => typeof v === "string" && uuidRe.test(v);
-
-  const base = stock.map(s => ({
+  const rows = stock.map(s => ({
     id: s.id,
     size: s.size,
     brand: s.brand,
@@ -1939,28 +1938,13 @@ async async function syncStockToSupabase() {
     qty: Number(s.qty || 0)
   }));
 
-  // ✅ Neue Einträge: OHNE id (Supabase erzeugt UUID)
-  const toInsert = base
-    .filter(r => !isUuid(r.id))
-    .map(({ id, ...rest }) => rest);
+  const { error } = await supabaseClient
+    .from("stock")
+    .upsert(rows, { onConflict: "id" });
 
-  // ✅ Updates: NUR mit echter UUID
-  const toUpsert = base.filter(r => isUuid(r.id));
-
-  try {
-    if (toInsert.length) {
-      const { error } = await supabaseClient.from("stock").insert(toInsert);
-      if (error) throw error;
-    }
-    if (toUpsert.length) {
-      const { error } = await supabaseClient
-        .from("stock")
-        .upsert(toUpsert, { onConflict: "id" });
-      if (error) throw error;
-    }
-  } catch (e) {
-    console.error("❌ Fehler beim Synchronisieren des Lagers:", e.message || e);
+  if (error) {
+    console.error("❌ Fehler beim Synchronisieren des Lagers:", error.message);
   }
 }
-
+*/
 
