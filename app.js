@@ -1375,24 +1375,36 @@ function deleteCustomer(){
 
 async function loadStockFromSupabase() {
   if (!READ_ONLY) return;
-stock = []; // 🔴 WICHTIG: alten Zustand löschen
-
 
   if (!supabaseClient) {
     console.warn("Supabase nicht verbunden – Lager kann nicht geladen werden");
     return;
   }
 
-
-  const { error } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from("stock")
-    .upsert(rows, { onConflict: "id" });
+    .select("*")
+    .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("❌ Lager Sync Fehler:", error.message);
-  } else {
-    console.log("🔄 Lager erfolgreich nach Supabase synchronisiert");
+    console.error("Fehler beim Laden des Lagers:", error.message);
+    return;
   }
+
+  stock = (data || []).map(row => ({
+    id: row.id,
+    created: row.created_at
+      ? new Date(row.created_at).toLocaleString("de-DE")
+      : "",
+    size: row.size || "",
+    brand: row.brand || "",
+    season: row.season || "",
+    model: row.model || "",
+    dot: row.dot || "",
+    qty: Number(row.qty || 0)
+  }));
+
+  renderStock();
 }
   const { data, error } = await supabaseClient
     .from("stock")
@@ -1890,4 +1902,13 @@ async function syncStockToSupabase() {
     dot: s.dot || null,
     qty: Number(s.qty || 0)
   }));
+
+  const { error } = await supabaseClient
+    .from("stock")
+    .upsert(rows, { onConflict: "id" });
+
+  if (error) {
+    console.error("❌ Fehler beim Synchronisieren des Lagers:", error.message);
+  }
+}
 
