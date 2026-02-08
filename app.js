@@ -26,7 +26,7 @@ let supabaseClient = null;
 })()
 
 /* ================================
-   SUPABASE  – LOGIN (NEU)
+   SUPABASE AUTH – LOGIN (NEU)
    - Lesen für alle möglich (wenn RLS so gesetzt)
    - Schreiben (INSERT/UPDATE/DELETE) nur wenn eingeloggt
 ================================= */
@@ -61,7 +61,7 @@ function updateAuthUi(){
   const el = document.getElementById("authStatus");
   if(!el) return;
   if(currentSession?.user?.email){
-    el.textContent = "✅ : " + currentSession.user.email;
+    el.textContent = "✅ Login: " + currentSession.user.email;
     el.classList.add("ok");
   } else {
     el.textContent = "🔒 Nicht eingeloggt";
@@ -78,13 +78,13 @@ function ensureAuthBar(){
   bar.innerHTML = `
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <div id="authStatus" style="opacity:.95">🔒 Nicht eingeloggt</div>
-      <button id="btn" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:6px 10px;cursor:pointer"></button>
+      <button id="btnLogin" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:6px 10px;cursor:pointer">Login</button>
       <button id="btnLogout" style="background:#334155;color:#fff;border:0;border-radius:10px;padding:6px 10px;cursor:pointer">Logout</button>
     </div>
   `;
   document.body.appendChild(bar);
 
-  document.getElementById("btn").onclick = () => openModal();
+  document.getElementById("btnLogin").onclick = () => openLoginModal();
   document.getElementById("btnLogout").onclick = async () => {
     if(!supabaseClient) return;
     await supabaseClient.auth.signOut();
@@ -94,7 +94,7 @@ function ensureAuthBar(){
   updateAuthUi();
 }
 
-function openModal(){
+function openLoginModal(){
   if(document.getElementById("loginModal")) return;
 
   const wrap = document.createElement("div");
@@ -103,7 +103,7 @@ function openModal(){
   wrap.innerHTML = `
     <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong></strong>
+        <strong>Login</strong>
         <button id="loginClose" style="border:0;background:transparent;font-size:20px;cursor:pointer">×</button>
       </div>
       <div style="margin-top:10px;display:grid;gap:10px">
@@ -139,16 +139,16 @@ function openModal(){
     }
     await refreshSession();
     close();
-    // Nach : Stock neu laden, damit Handy/PC sofort die Cloud-Daten sieht
+    // Nach Login: Stock neu laden, damit Handy/PC sofort die Cloud-Daten sieht
     try { await loadStockFromSupabase(); } catch(e) {}
   };
 }
 
-async function requireOrThrow(){
+async function requireLoginOrThrow(){
   await refreshSession();
   if(!currentSession){
     ensureAuthBar();
-    openModal();
+    openLoginModal();
     throw new Error("NOT_LOGGED_IN");
   }
 }
@@ -2064,8 +2064,8 @@ initApp();
 async function syncStockToSupabase() {
   if (!supabaseClient) return;
 
-  // Schreiben nur mit  (RLS: authenticated)
-  try { await requireOrThrow(); } catch(e) { return; }
+  // Schreiben nur mit Login (RLS: authenticated)
+  try { await requireLoginOrThrow(); } catch(e) { return; }
 
   // Alte lokale IDs (Timestamp) auf UUID migrieren, bevor wir schreiben
   stock.forEach(s=>{
