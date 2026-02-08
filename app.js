@@ -421,8 +421,7 @@ const $ = id => document.getElementById(id);
    - Master-PC arbeitet normal
    ========================================================= */
 const READ_ONLY = (
-  /iphone|ipad|ipod/i.test(navigator.userAgent) ||
-  (new URLSearchParams(location.search).get("ro") === "1")
+  new URLSearchParams(location.search).get("ro") === "1"
 );
 
 function roAlert(){
@@ -811,12 +810,15 @@ function switchView(view) {
   } else if (view === "customers") {
     renderCustomers();
   } else if (view === "stock") {
-    if (typeof READ_ONLY !== "undefined" && READ_ONLY) {
-      if (typeof loadStockFromSupabase === "function") loadStockFromSupabase();
+    // Lager: immer versuchen, live aus Supabase zu laden (falls verfügbar),
+    // danach renderStock() – ansonsten localStorage-Daten anzeigen.
+    if (typeof loadStockFromSupabase === "function" && supabaseClient) {
+      loadStockFromSupabase();
     } else {
       renderStock();
     }
   }
+}
 }
 
 
@@ -1382,8 +1384,6 @@ function deleteCustomer(){
    ========================================================= */
 
 async function loadStockFromSupabase() {
-  if (!READ_ONLY) return;
-
   if (!supabaseClient) {
     console.warn("Supabase nicht verbunden – Lager kann nicht geladen werden");
     return;
@@ -1862,18 +1862,16 @@ renderBrands();
 async function initApp() {
   await initCustomersFromSupabase();
   await initOrdersFromSupabase();
-
-  if (READ_ONLY) {
+  // Lager einmal initial aus Supabase laden (falls verfügbar)
+  if (typeof loadStockFromSupabase === "function" && supabaseClient) {
     await loadStockFromSupabase();
   }
-
   switchView("orders");
 }
 
 initApp();
 
 async function syncStockToSupabase() {
-  if (READ_ONLY) return;
   if (!supabaseClient) return;
 
   const rows = stock.map(s => ({
