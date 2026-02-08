@@ -2,6 +2,14 @@
    SUPABASE – INITIALISIERUNG (TEST)
 ================================ */
 
+// ===== FIX: Stub für syncStockToSupabase (verhindert ReferenceError & UUID-Fehler)
+function syncStockToSupabase() {
+  // bewusst leer – Sync deaktiviert
+}
+// ===== END FIX =====
+
+
+
 let supabaseClient = null;
 
 (function initSupabase() {
@@ -1923,8 +1931,6 @@ async function initApp() {
 
 initApp();
 
-/* syncStockToSupabase deaktiviert (Fix Syntax + UUID)
-
 async function syncStockToSupabase() {
   if (!supabaseClient) return;
 
@@ -1946,5 +1952,4 @@ async function syncStockToSupabase() {
     console.error("❌ Fehler beim Synchronisieren des Lagers:", error.message);
   }
 }
-*/
 
