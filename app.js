@@ -107,7 +107,7 @@ function normalizeOrderFromDb(row) {
     customerId: cid || "",
     customerName: customer.name || row.customername || row.customer_name || "Unbekannter Kunde",
     customerPhone: customer.phone || row.customerphone || row.customer_phone || "",
-    licensePlate: customer.license_plate || row.license_plate || row.licensePlate || "",
+    licensePlate: (customer.license_plate || customer.plate) || row.license_plate || row.licensePlate || "",
     customerEmail: customer.email || row.customeremail || row.customer_email || "",
     size: row.size || "",
     brand: row.brand || "",
@@ -132,10 +132,30 @@ async function initOrdersFromSupabase() {
   }
 
   // 1) Orders aus Supabase laden
-  const { data, error } = await supabaseClient
+  //    Versuche zuerst JOIN auf customers (falls FK-Relation in Supabase existiert).
+  //    Wenn keine Relation existiert, fällt es automatisch auf select("*") zurück.
+  let data = null;
+  let error = null;
+
+  // Try joined select (best for reliable customer names)
+  const joined = await supabaseClient
     .from(SUPABASE_ORDERS_TABLE)
+    .select('*, customers (id,name,phone,license_plate,email)')
+    .order("created_at", { ascending: false });
+
+  if (joined && joined.error){
+    // Fallback: no relationship defined → plain select
+    const plain = await supabaseClient
+      .from(SUPABASE_ORDERS_TABLE)
       .select("*")
-      .order("created_at", { ascending: false }); // FIX: created_at statt created
+      .order("created_at", { ascending: false });
+
+    data = plain.data;
+    error = plain.error;
+  } else {
+    data = joined.data;
+    error = joined.error;
+  }
 
   if (error){
     console.error("❌ Fehler beim Laden der Orders:", error.message);
@@ -271,6 +291,7 @@ async function saveOrderToSupabase(currentOrder){
       name: (customer.name || currentOrder.customerName || "").trim(),
       phone: (customer.phone || currentOrder.customerPhone || "").trim(),
       license_plate: (customer.license_plate || currentOrder.licensePlate || "").trim(),
+      plate: (customer.license_plate || currentOrder.licensePlate || "").trim(),
       email: (customer.email || currentOrder.customerEmail || "").trim()
     });
 const payload = mapOrderForDb(currentOrder);
@@ -413,6 +434,23 @@ let editingCustomerId = null;
 let editingStockId = null;
 
 const $ = id => document.getElementById(id);
+
+// Mobile-safe tap helper (iOS sometimes drops click on fast taps inside scroll containers)
+function bindTap(el, handler){
+  if (!el) return;
+  let lastTouch = 0;
+
+  el.addEventListener("touchend", (e)=>{
+    lastTouch = Date.now();
+    handler(e);
+  }, { passive: true });
+
+  el.addEventListener("click", (e)=>{
+    // avoid double-fire after touch
+    if (Date.now() - lastTouch < 450) return;
+    handler(e);
+  });
+}
 
 
 /* =========================================================
@@ -653,9 +691,14 @@ function findCustomerById(id){
 function resolveCustomerForOrder(o){
   const id = o?.customerId ?? o?.customerid ?? o?.customer_id ?? null;
 
-  // 1) Legacy/localStorage
+  // 1) Legacy/localStorage oder bereits geladene Supabase-Kunden
   const local = id ? findCustomerById(id) : null;
-  if (local) return local;
+  if (local){
+    // Normalize for UI
+    if (local.license_plate && !local.plate) local.plate = local.license_plate;
+    if (local.plate && !local.license_plate) local.license_plate = local.plate;
+    return local;
+  }
 
   // 2) Supabase JOIN-Felder aus normalizeOrderFromDb()
   return {
@@ -701,7 +744,7 @@ function exportExcelWorkbook(){
       c.name || "",
       xlText(c.phone || ""),
       c.email || "",
-      xlText(c.plate ? plateClean(c.plate) : ""),
+      xlText(c.plate ? plateClean(c.plate || c.license_plate) : ""),
       c.street || "",
       xlText(c.zip || ""),
       c.city || "",
@@ -731,7 +774,7 @@ function exportExcelWorkbook(){
       c.name || "",
       xlText(c.phone || ""),
       c.email || "",
-      xlText(c.plate ? plateClean(c.plate) : ""),
+      xlText(c.plate ? plateClean(c.plate || c.license_plate) : ""),
       c.street || "",
       xlText(c.zip || ""),
       c.city || "",
@@ -819,7 +862,6 @@ function switchView(view) {
     }
   }
 }
-}
 
 
 
@@ -847,15 +889,18 @@ function findCustomer(phone, email, plate){
   return customers.find(c => (
     (p && phoneClean(c.phone) === p) ||
     (e && emailClean(c.email) === e) ||
-    (k && plateClean(c.plate) === k)
+    (k && plateClean(c.plate || c.license_plate) === k)
   )) || null;
 }
 
 function validateCustomerMinimum(data){
   const p = phoneClean(data.phone);
   const e = emailClean(data.email);
-  if (!p && !e) {
-    alert("Bitte Telefon ODER E-Mail eingeben (Pflicht).");
+  const k = plateClean(data.plate);
+
+  // Minimal: mindestens eines von Telefon, E‑Mail oder Kennzeichen
+  if (!p && !e && !k) {
+    alert("Bitte Telefon ODER E‑Mail ODER Kennzeichen eingeben (mindestens 1 Pflicht).");
     return false;
   }
   return true;
@@ -920,7 +965,7 @@ function renderOrders(){
     if (o.status === ARCHIVE_STATUS) return;
 
     const c = resolveCustomerForOrder(o);
-    const blob = [c?.name,c?.phone,c?.email,c?.plate,c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
+    const blob = [c?.name,c?.phone,c?.email,(c?.plate||c?.license_plate),c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
     if (q && !blob.includes(q)) return;
 
     const card = buildOrderCard(o,c,true);
@@ -944,7 +989,7 @@ function renderArchive(){
     if (o.status !== ARCHIVE_STATUS) return;
 
     const c = resolveCustomerForOrder(o);
-    const blob = [c?.name,c?.phone,c?.email,c?.plate,c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
+    const blob = [c?.name,c?.phone,c?.email,(c?.plate||c?.license_plate),c?.street,c?.zip,c?.city,c?.source,o.size,o.brand,o.note,o.orderSource].join(" ").toLowerCase();
     if (q && !blob.includes(q)) return;
 
     const card = buildOrderCard(o,c,false);
@@ -978,7 +1023,11 @@ function buildOrderCard(o,c,withStatus){
 
   const card = document.createElement("div");
   card.className = "card status-"+o.status.toLowerCase();
-  if (!READ_ONLY) card.onclick = ()=>openEditOrder(o.id);
+  if (!READ_ONLY) bindTap(card, (e)=>{
+    // ignore taps on inner buttons
+    if (e && e.target && e.target.closest && e.target.closest('button')) return;
+    openEditOrder(o.id);
+  });
 
   card.innerHTML = `
     <div class="card-top">
@@ -995,7 +1044,7 @@ function buildOrderCard(o,c,withStatus){
     <div class="card-grid">
       <div class="kv"><div class="k">Telefon</div><div class="v">${c?.phone || "—"}</div></div>
       ${withStatus ? `<div class="kv"><div class="k">Rest</div><div class="v">${money(rest)}</div></div>` : ""}
-      <div class="kv"><div class="k">Kennzeichen</div><div class="v">${c?.plate || "—"}</div></div>
+      <div class="kv"><div class="k">Kennzeichen</div><div class="v">${(c?.plate || c?.license_plate) || "—"}</div></div>
       <div class="kv"><div class="k">Datum</div><div class="v">${o.created}</div></div>
     </div>
 
@@ -1043,7 +1092,7 @@ function renderCustomers(){
 
   customers
     .filter(c=>{
-      const blob=[c.name,c.phone,c.email,plateClean(c.plate),c.street,c.zip,c.city,c.source].join(" ").toLowerCase();
+      const blob=[c.name,c.phone,c.email,plateClean(c.plate || c.license_plate),c.street,c.zip,c.city,c.source].join(" ").toLowerCase();
       return !q || blob.includes(q);
     })
     .forEach(c=>{
@@ -1056,7 +1105,7 @@ function renderCustomers(){
             <div class="card-sub">
               📞 ${c.phone || "—"}
               ${c.email ? "· ✉️ "+c.email : ""}
-              ${c.plate ? "· 🚗 "+plateClean(c.plate) : ""}
+              ${(c.plate||c.license_plate) ? "· 🚗 "+plateClean(c.plate||c.license_plate) : ""}
             </div>
             <div class="card-sub">📍 ${[c.street,c.zip,c.city].filter(Boolean).join(" ").trim() || "—"} ${c.source ? "· 🧭 "+c.source : ""}</div>
           </div>
@@ -1479,7 +1528,10 @@ function renderStock(){
   filtered.forEach(s=>{
     const card=document.createElement("div");
     card.className="card";
-    if (!READ_ONLY) card.onclick = ()=>openEditStock(s.id);
+    if (!READ_ONLY) bindTap(card, (e)=>{
+      if (e && e.target && e.target.closest && e.target.closest('button')) return;
+      openEditStock(s.id);
+    });
 
     const cls = qtyClass(Number(s.qty||0));
     const modelPart = s.model ? ` · ${s.model}` : "";
