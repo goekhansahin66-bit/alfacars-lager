@@ -461,3 +461,24 @@ body{
     height: auto;
   }
 }
+
+
+/* =========================
+   FIX: Explizite Board-Zuordnung
+   ========================= */
+#ordersBoard,
+#archiveBoard,
+#customerBoard,
+#stockBoard {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+}
+
+/* =========================
+   FIX: Aktives Board klickbar
+   ========================= */
+.board:not(.hidden) {
+  pointer-events: auto;
+  visibility: visible;
+}
