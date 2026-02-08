@@ -584,7 +584,7 @@ let editingStockId = null;
 const $ = id => document.getElementById(id);
 
 // Mobile-safe tap helper (iOS sometimes drops click on fast taps inside scroll containers)
-function bindSafeTap(el, handler){
+function bindTap(el, handler){
   if (!el) return;
   let lastTouch = 0;
 
@@ -2100,3 +2100,32 @@ async function syncStockToSupabase() {
 }
 
 
+
+
+
+/* =========================================
+   FIX: SCROLL-SAFE TAP (MOBILE)
+   ========================================= */
+function bindSafeTap(el, handler){
+  if (!el) return;
+  let startY = 0;
+  let moved = false;
+
+  el.addEventListener("touchstart", e=>{
+    startY = e.touches[0].clientY;
+    moved = false;
+  }, { passive:true });
+
+  el.addEventListener("touchmove", e=>{
+    if (Math.abs(e.touches[0].clientY - startY) > 8){
+      moved = true;
+    }
+  }, { passive:true });
+
+  el.addEventListener("touchend", e=>{
+    if (moved) return;
+    handler(e);
+  });
+
+  el.addEventListener("click", handler);
+}
