@@ -790,29 +790,22 @@ function exportExcelWorkbook(){
 function switchView(view) {
   currentView = view;
 
-  const ordersBoard   = document.getElementById("ordersBoard");
-  const archiveBoard  = document.getElementById("archiveBoard");
-  const customerBoard = document.getElementById("customerBoard");
-  const stockBoard    = document.getElementById("stockBoard");
+  $("board").classList.toggle("hidden", view !== "orders");
+  $("archiveBoard").classList.toggle("hidden", view !== "archive");
+  $("customerBoard").classList.toggle("hidden", view !== "customers");
+  $("stockBoard").classList.toggle("hidden", view !== "stock");
 
-  if (ordersBoard)   ordersBoard.classList.toggle("hidden", view !== "orders");
-  if (archiveBoard)  archiveBoard.classList.toggle("hidden", view !== "archive");
-  if (customerBoard) customerBoard.classList.toggle("hidden", view !== "customers");
-  if (stockBoard)    stockBoard.classList.toggle("hidden", view !== "stock");
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  const activeTab = document.querySelector(`[data-tab="${view}"]`);
+  if (activeTab) activeTab.classList.add("active");
 
-  document.querySelectorAll(".tab").forEach(t => {
-    t.classList.toggle("active", t.dataset.tab === view);
-  });
+  if (view === "orders") renderOrders();
+  if (view === "archive") renderArchive();
+  if (view === "customers") renderCustomers();
 
-  if (view === "orders") {
-    renderOrders();
-  } else if (view === "archive") {
-    renderArchive();
-  } else if (view === "customers") {
-    renderCustomers();
-  } else if (view === "stock") {
-    if (typeof READ_ONLY !== "undefined" && READ_ONLY) {
-      if (typeof loadStockFromSupabase === "function") loadStockFromSupabase();
+  if (view === "stock") {
+    if (READ_ONLY) {
+      loadStockFromSupabase();
     } else {
       renderStock();
     }
