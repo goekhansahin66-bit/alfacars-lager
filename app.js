@@ -481,7 +481,7 @@ function saveOrders() { /* no-op */ }
 function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(customers)); }
 function saveStock() {
   localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
-  // syncStockToSupabase(); // FIX: deaktiviert wegen UUID-Schutz // 🔄 AUTO-SYNC
+  syncStockToSupabase(); // 🔄 AUTO-SYNC
 }
 function saveAll(){ saveOrders(); saveCustomers(); saveStock(); }
 
@@ -1482,7 +1482,7 @@ function upsertStock(data){
   if(!clean(data.season)) return alert("Bitte Saison wählen");
 
   const item = {
-    id: data.id || null // FIX: keine Timestamp-ID für Supabase,
+    id: data.id || Date.now(),
     size,
     brand: clean(data.brand),
     season: clean(data.season),
@@ -1892,6 +1892,11 @@ if (READ_ONLY) overrideReadOnlyUI();
   });
 });
 
+(()=>{ const el=$("f_size"); if(!el){ console.warn("⚠️ Element fehlt: f_size"); return; }
+  el.addEventListener("input",()=>{
+    el.value = normalizeTireSize(el.value);
+  });
+})();
 
 (()=>{ const el=$("s_size"); if(!el){ console.warn("⚠️ Element fehlt: s_size"); return; }
   el.addEventListener("input",()=>{
