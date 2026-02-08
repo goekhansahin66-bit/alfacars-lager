@@ -23,7 +23,143 @@ let supabaseClient = null;
 
   supabaseClient = window.supabase.createClient(url, anonKey);
   console.log("✅ Supabase verbunden");
-})();
+})()
+
+/* ================================
+   SUPABASE AUTH – LOGIN (NEU)
+   - Lesen für alle möglich (wenn RLS so gesetzt)
+   - Schreiben (INSERT/UPDATE/DELETE) nur wenn eingeloggt
+================================= */
+
+let currentSession = null;
+
+function isUuid(v){
+  return typeof v === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+function newUuid(){
+  try {
+    if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  } catch(e){}
+  // Fallback (RFC4122-ish)
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==="x"?r:(r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
+async function refreshSession(){
+  if(!supabaseClient) return null;
+  const { data } = await supabaseClient.auth.getSession();
+  currentSession = data?.session || null;
+  updateAuthUi();
+  return currentSession;
+}
+
+function updateAuthUi(){
+  const el = document.getElementById("authStatus");
+  if(!el) return;
+  if(currentSession?.user?.email){
+    el.textContent = "✅ Login: " + currentSession.user.email;
+    el.classList.add("ok");
+  } else {
+    el.textContent = "🔒 Nicht eingeloggt";
+    el.classList.remove("ok");
+  }
+}
+
+function ensureAuthBar(){
+  if(document.getElementById("authBar")) return;
+
+  const bar = document.createElement("div");
+  bar.id = "authBar";
+  bar.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:9999;background:#0b1220;color:#fff;padding:10px 12px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);font:13px system-ui;max-width:92vw";
+  bar.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div id="authStatus" style="opacity:.95">🔒 Nicht eingeloggt</div>
+      <button id="btnLogin" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:6px 10px;cursor:pointer">Login</button>
+      <button id="btnLogout" style="background:#334155;color:#fff;border:0;border-radius:10px;padding:6px 10px;cursor:pointer">Logout</button>
+    </div>
+  `;
+  document.body.appendChild(bar);
+
+  document.getElementById("btnLogin").onclick = () => openLoginModal();
+  document.getElementById("btnLogout").onclick = async () => {
+    if(!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+    await refreshSession();
+  };
+
+  updateAuthUi();
+}
+
+function openLoginModal(){
+  if(document.getElementById("loginModal")) return;
+
+  const wrap = document.createElement("div");
+  wrap.id = "loginModal";
+  wrap.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px";
+  wrap.innerHTML = `
+    <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Login</strong>
+        <button id="loginClose" style="border:0;background:transparent;font-size:20px;cursor:pointer">×</button>
+      </div>
+      <div style="margin-top:10px;display:grid;gap:10px">
+        <input id="loginEmail" placeholder="E-Mail" type="email" style="padding:10px;border:1px solid #ddd;border-radius:10px"/>
+        <input id="loginPass" placeholder="Passwort" type="password" style="padding:10px;border:1px solid #ddd;border-radius:10px"/>
+        <button id="loginDo" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:10px;cursor:pointer">Einloggen</button>
+        <div style="font-size:12px;color:#334155">Nur eingeloggte Nutzer dürfen Lager bearbeiten.</div>
+        <div id="loginErr" style="font-size:12px;color:#b91c1c"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  document.getElementById("loginClose").onclick = close;
+  wrap.addEventListener("click",(e)=>{ if(e.target===wrap) close(); });
+
+  document.getElementById("loginDo").onclick = async () => {
+    const email = (document.getElementById("loginEmail").value||"").trim();
+    const password = document.getElementById("loginPass").value||"";
+    const errEl = document.getElementById("loginErr");
+    errEl.textContent = "";
+
+    if(!email || !password){
+      errEl.textContent = "Bitte E-Mail und Passwort eingeben.";
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if(error){
+      errEl.textContent = error.message;
+      return;
+    }
+    await refreshSession();
+    close();
+    // Nach Login: Stock neu laden, damit Handy/PC sofort die Cloud-Daten sieht
+    try { await loadStockFromSupabase(); } catch(e) {}
+  };
+}
+
+async function requireLoginOrThrow(){
+  await refreshSession();
+  if(!currentSession){
+    ensureAuthBar();
+    openLoginModal();
+    throw new Error("NOT_LOGGED_IN");
+  }
+}
+
+// Auth Listener
+if(supabaseClient){
+  supabaseClient.auth.onAuthStateChange(async () => {
+    await refreshSession();
+  });
+}
+;
 
 
 
@@ -1432,7 +1568,7 @@ function deleteCustomer(){
    - PC nutzt aktuell weiterhin localStorage für Lager (Editing)
    ========================================================= */
 
-async function loadStockFromSupabase() {
+async async function loadStockFromSupabase() {
   if (!supabaseClient) {
     console.warn("Supabase nicht verbunden – Lager kann nicht geladen werden");
     return;
@@ -1482,7 +1618,7 @@ function upsertStock(data){
   if(!clean(data.season)) return alert("Bitte Saison wählen");
 
   const item = {
-    id: data.id || Date.now(),
+    id: data.id || newUuid(),
     size,
     brand: clean(data.brand),
     season: clean(data.season),
@@ -1909,6 +2045,8 @@ if (READ_ONLY) overrideReadOnlyUI();
 /* =========================================================
    INIT
    ========================================================= */
+ensureAuthBar();
+refreshSession();
 renderBrands();
 
 async function initApp() {
@@ -1925,6 +2063,14 @@ initApp();
 
 async function syncStockToSupabase() {
   if (!supabaseClient) return;
+
+  // Schreiben nur mit Login (RLS: authenticated)
+  try { await requireLoginOrThrow(); } catch(e) { return; }
+
+  // Alte lokale IDs (Timestamp) auf UUID migrieren, bevor wir schreiben
+  stock.forEach(s=>{
+    if(!isUuid(s.id)) s.id = newUuid();
+  });
 
   const rows = stock.map(s => ({
     id: s.id,
@@ -1945,10 +2091,4 @@ async function syncStockToSupabase() {
   }
 }
 
-// ===== FINAL OVERRIDE FIX =====
-// Diese Definition überschreibt jede frühere Version.
-// Ergebnis: KEIN Supabase-POST, KEIN UUID-Fehler.
-syncStockToSupabase = function () {
-  return; // Sync komplett deaktiviert
-};
-// ===== END FINAL OVERRIDE =====
+
