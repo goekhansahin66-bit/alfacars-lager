@@ -1060,6 +1060,7 @@ function switchView(view) {
       loadStockFromSupabase();
     } else {
       renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
     }
   }
 }
@@ -1662,6 +1663,7 @@ async function loadStockFromSupabase() {
   }));
 
   renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
 }
 
 /* =========================================================
@@ -1783,6 +1785,7 @@ return blob.includes(normQ);
         stock = stock.filter(x => x.id !== s.id);
         saveStock();
         renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
       }
     };
 
@@ -1796,6 +1799,7 @@ return blob.includes(normQ);
       s.qty = Math.max(0, Number(s.qty||0) - 1);
       saveStock();
       renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
     };
     plus.onclick = e=>{
       if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
@@ -1803,6 +1807,7 @@ return blob.includes(normQ);
       s.qty = Math.max(0, Number(s.qty||0) + 1);
       saveStock();
       renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
     };
     qtyInput.oninput = e=>{
       if (READ_ONLY){ e.stopPropagation(); return roAlert(); }
@@ -1811,6 +1816,7 @@ return blob.includes(normQ);
       s.qty = v;
       saveStock();
       renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
     };
 
     $("stockList").appendChild(card);
@@ -1916,6 +1922,7 @@ function saveStockItem(){
 
   closeStockModal();
   renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
 }
 
 function deleteStockItem(){
@@ -1926,6 +1933,7 @@ function deleteStockItem(){
   saveStock();
   closeStockModal();
   renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
 }
 
 /* =========================================================
@@ -2523,6 +2531,7 @@ if (READ_ONLY) overrideReadOnlyUI();
   el.oninput = () => {
     if (READ_ONLY) return;
     renderStock();
+try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
   };
 })();
 ["f_qty","f_unit","f_deposit"].forEach(id=>{
@@ -2640,4 +2649,53 @@ function bindSafeTap(el, handler){
   });
 
   el.addEventListener("click", handler);
+}
+
+
+// ===== BESTELL-LISTE (READ-ONLY) =====
+const MIN_STOCK = 4;
+const ORDER_BRANDS = ["BERLIN TIRES","SYRON"];
+
+function computeOrderList(stocks){
+  return (stocks||[]).filter(s=>{
+    const brand = (s.brand||"").toUpperCase();
+    const qty = Number(s.qty||s.quantity||0);
+    return ORDER_BRANDS.includes(brand) && qty < MIN_STOCK;
+  }).map(s=>{
+    const qty = Number(s.qty||s.quantity||0);
+    return {
+      brand: s.brand,
+      size: s.size,
+      season: s.season,
+      need: Math.max(0, MIN_STOCK - qty)
+    };
+  }).filter(x=>x.need>0);
+}
+
+function ensureOrderSection(){
+  if (document.getElementById("orderListSection")) return;
+  const sec = document.createElement("section");
+  sec.id = "orderListSection";
+  sec.innerHTML = `
+    <h3>📦 Bestellen</h3>
+    <div id="orderList" class="order-list"></div>
+  `;
+  document.body.appendChild(sec);
+}
+
+function renderOrderList(stocks){
+  ensureOrderSection();
+  const list = document.getElementById("orderList");
+  if (!list) return;
+  const rows = computeOrderList(stocks);
+  if (!rows.length){
+    list.innerHTML = "<div class='muted'>Keine Bestellungen offen</div>";
+    return;
+  }
+  list.innerHTML = rows.map(r=>`
+    <div class="order-row">
+      <strong>${r.brand}</strong> ${r.size} ${r.season||""}
+      <span class="need">– Bestellen: ${r.need}</span>
+    </div>
+  `).join("");
 }
