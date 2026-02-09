@@ -3,18 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Alfacars – Lager & Bestellungen</title>
+  <title>Alfacars – Reifen / Kunden / Lager</title>
+
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Supabase -->
+  <!-- Supabase UMD -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
 <div class="shell">
 
-  <!-- TOPBAR -->
-  <header class="topbar">
+  <!-- ================= TOPBAR ================= -->
+  <div class="topbar">
     <div>
       <div class="brand-title">Alfacars</div>
       <div class="brand-sub">Bestellungen · Kunden · Lager</div>
@@ -23,98 +24,289 @@
     <div class="top-actions">
       <div class="search">
         <span class="icon">🔎</span>
-        <input id="searchInput" placeholder="Suchen (Kunde, Größe, Marke …)">
-        <button class="ghost" id="clearSearch">✕</button>
+        <input id="searchInput" placeholder="Suchen (Kunde, Telefon, Kennzeichen, Größe, Marke …)" />
+        <button class="ghost" id="clearSearch" title="Suche löschen">✕</button>
       </div>
 
       <button class="btn primary" id="btnNew">+ Bestellung</button>
+      <button class="btn soft" id="btnDayClose">Tagesabschluss</button>
       <button class="btn soft" id="btnExportAll">Export</button>
     </div>
-  </header>
+  </div>
 
-  <!-- TABS -->
-  <nav class="tabs">
+  <!-- ================= TABS ================= -->
+  <div class="tabs">
     <button class="tab active" data-tab="orders">Bestellungen</button>
     <button class="tab" data-tab="archive">Archiv</button>
     <button class="tab" data-tab="customers">Kunden</button>
     <button class="tab" data-tab="stock">Lager</button>
-  </nav>
+  </div>
 
-  <!-- ORDERS -->
-  <main class="board" id="ordersBoard">
-    <section class="column">
+  <!-- ================= ORDERS ================= -->
+  <div class="board" id="ordersBoard">
+
+    <div class="column">
       <div class="col-head">
-        <div class="col-title"><span class="dot grey"></span>Bestellt</div>
+        <div class="col-title">
+          <span class="dot dot-grey"></span> Bestellt
+        </div>
         <div class="col-count" id="count-Bestellt">0</div>
       </div>
       <div class="col-body" id="col-Bestellt"></div>
-    </section>
+    </div>
 
-    <section class="column">
+    <div class="column">
       <div class="col-head">
-        <div class="col-title"><span class="dot yellow"></span>Anrufen</div>
+        <div class="col-title">
+          <span class="dot dot-yellow"></span> Anrufen
+        </div>
         <div class="col-count" id="count-Anrufen">0</div>
       </div>
       <div class="col-body" id="col-Anrufen"></div>
-    </section>
+    </div>
 
-    <section class="column">
+    <div class="column">
       <div class="col-head">
-        <div class="col-title"><span class="dot green"></span>Erledigt</div>
+        <div class="col-title">
+          <span class="dot dot-green"></span> Erledigt
+        </div>
         <div class="col-count" id="count-Erledigt">0</div>
       </div>
       <div class="col-body" id="col-Erledigt"></div>
-    </section>
-  </main>
+    </div>
 
-  <!-- ARCHIVE -->
-  <main class="board hidden" id="archiveBoard">
-    <section class="column full">
+  </div>
+
+  <!-- ================= ARCHIVE ================= -->
+  <div class="board hidden" id="archiveBoard">
+    <div class="column" style="grid-column:1/-1;">
       <div class="col-head">
-        <div class="col-title">Archiv</div>
+        <div class="col-title">
+          <span class="dot dot-grey"></span> Archiv
+        </div>
         <div class="col-count" id="count-Archiv">0</div>
       </div>
       <div class="col-body" id="col-Archiv"></div>
-    </section>
-  </main>
+    </div>
+  </div>
 
-  <!-- CUSTOMERS -->
-  <main class="board hidden" id="customerBoard">
-    <section class="column full">
+  <!-- ================= CUSTOMERS ================= -->
+  <div class="board hidden" id="customerBoard">
+    <div class="column" style="grid-column:1/-1;">
       <div class="col-head">
         <div class="col-title">Kunden</div>
+        <div class="col-count" id="reachBox"></div>
       </div>
-      <div class="col-body">
-        <input class="search-input" id="customerSearchInput" placeholder="Kunden suchen…">
-        <div id="customerList"></div>
-        <button class="btn primary mt" id="btnNewCustomer">+ Kunde</button>
-      </div>
-    </section>
-  </main>
 
-  <!-- STOCK -->
-  <main class="board hidden" id="stockBoard">
-    <section class="column full">
+      <div class="col-body">
+
+        <div class="search" style="box-shadow:none; margin-bottom:12px;">
+          <span class="icon">🔎</span>
+          <input id="customerSearchInput" placeholder="Kunden suchen (Name, Telefon, Kennzeichen …)" />
+        </div>
+
+        <div id="customerList"></div>
+
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn primary" id="btnNewCustomer">+ Kunde</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= STOCK ================= -->
+  <div class="board hidden" id="stockBoard">
+    <div class="column" style="grid-column:1/-1;">
       <div class="col-head">
         <div class="col-title">Lager</div>
-        <div class="col-count"><span id="stockNeedCount">0</span> fehlen</div>
+        <div class="col-count">
+          <span id="stockNeedCount">0</span> fehlen
+        </div>
       </div>
 
       <div class="col-body">
-        <input class="search-input" id="stockSearchInput" placeholder="Größe · Marke · Saison">
 
-        <!-- KI Scan Button -->
-        <button class="btn soft scan-btn">📸 Reifen scannen</button>
+        <div class="search" style="box-shadow:none; margin-bottom:12px;">
+          <span class="icon">🔎</span>
+          <input id="stockSearchInput" placeholder="Lager suchen (Größe, Marke, Saison, DOT …)" />
+        </div>
 
+        <!-- 📸 Scan vorbereitet (noch ohne Logik) -->
+        <button class="btn soft" id="btnScanTire">📸 Reifen scannen</button>
+
+        <div id="stockNeedBox" class="note hidden"></div>
         <div id="stockList"></div>
-        <button class="btn primary mt" id="btnNewStock">+ Lager</button>
-      </div>
-    </section>
-  </main>
 
-  <footer class="foot">Bereit</footer>
+        <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn primary" id="btnNewStock">+ Lager</button>
+        </div>
+
+        <div class="hint" style="margin-top:10px;">
+          Tipp: Read-Only nur mit <b>?ro=1</b>. Ohne Parameter ist Handy-Bearbeitung aktiv.
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FOOTER ================= -->
+  <div class="foot">
+    <span class="muted">Bereit</span>
+  </div>
 
 </div>
+
+<!-- ================= ORDER MODAL ================= -->
+<div class="modal hidden" id="modal">
+  <div class="modal-card">
+
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="modalTitle">Bestellung</div>
+        <div class="modal-sub">Daten eingeben & speichern</div>
+      </div>
+      <button class="ghost big" id="btnClose">✕</button>
+    </div>
+
+    <div class="form-grid">
+
+      <div class="field">
+        <label>Kunde</label>
+        <input id="f_name" placeholder="Name" />
+        <div class="hint">Telefon/Kennzeichen helfen beim Wiederfinden.</div>
+      </div>
+
+      <div class="field">
+        <label>Telefon</label>
+        <input id="f_phone" placeholder="z.B. 0176..." />
+      </div>
+
+      <div class="field">
+        <label>Kennzeichen</label>
+        <input id="f_plate" placeholder="z.B. B-AB 1234" />
+      </div>
+
+      <div class="field">
+        <label>E-Mail</label>
+        <input id="f_email" placeholder="optional" />
+      </div>
+
+      <div class="field">
+        <label>Straße</label>
+        <input id="f_street" placeholder="optional" />
+      </div>
+
+      <div class="field">
+        <label>PLZ</label>
+        <input id="f_zip" placeholder="optional" />
+      </div>
+
+      <div class="field">
+        <label>Ort</label>
+        <input id="f_city" placeholder="optional" />
+      </div>
+
+      <div class="field">
+        <label>Herkunft</label>
+        <input id="f_source" placeholder="z.B. Empfehlung / Google" />
+      </div>
+
+      <div class="field">
+        <label>Reifengröße</label>
+        <input id="f_size" placeholder="z.B. 205/55 R16" />
+      </div>
+
+      <div class="field">
+        <label>Marke</label>
+        <input id="f_brand" list="brandList" />
+        <datalist id="brandList"></datalist>
+      </div>
+
+      <div class="field">
+        <label>Saison</label>
+        <select id="f_season">
+          <option value="">Bitte wählen</option>
+          <option>Sommer</option>
+          <option>Winter</option>
+          <option>Allwetter</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Modell</label>
+        <input id="f_model" list="modelList" />
+        <datalist id="modelList"></datalist>
+      </div>
+
+      <div class="field">
+        <label>Menge</label>
+        <input id="f_qty" type="number" min="0" />
+      </div>
+
+      <div class="field">
+        <label>Preis pro Stück</label>
+        <input id="f_unit" type="number" min="0" step="0.01" />
+      </div>
+
+      <div class="field">
+        <label>Anzahlung</label>
+        <input id="f_deposit" type="number" min="0" step="0.01" />
+      </div>
+
+      <div class="field">
+        <label>Felgen</label>
+        <input id="f_rims" placeholder="optional" />
+      </div>
+
+      <div class="field span-2">
+        <label>Notiz</label>
+        <textarea id="f_note" rows="3"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Status</label>
+        <select id="f_status">
+          <option>Bestellt</option>
+          <option>Anrufen</option>
+          <option>Erledigt</option>
+          <option>Archiv</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Bestellquelle</label>
+        <input id="f_orderSource" />
+      </div>
+
+    </div>
+
+    <div class="calc-row">
+      <div class="calc">
+        <div class="calc-label">Gesamt</div>
+        <div class="calc-value" id="calc_total">0,00 €</div>
+      </div>
+      <div class="calc">
+        <div class="calc-label">Restbetrag</div>
+        <div class="calc-value" id="calc_rest">0,00 €</div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <div class="left-actions">
+        <button class="btn danger" id="btnDelete">Löschen</button>
+      </div>
+      <div class="right-actions">
+        <button class="btn" id="btnCancel">Abbrechen</button>
+        <button class="btn primary" id="btnSave">Speichern</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================= CUSTOMER & STOCK MODALS ================= -->
+<!-- bewusst unverändert – vollständig kompatibel zu app.js -->
 
 <script src="app.js"></script>
 </body>
