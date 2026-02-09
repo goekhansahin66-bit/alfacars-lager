@@ -1,3 +1,24 @@
+
+// ===== FINAL HELPERS =====
+function normalizeText(s){
+  return (s||"")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function sizeToKey(size){
+  if (!size) return "";
+  const m = size.toUpperCase().match(/(\d{3})\s*\/\s*(\d{2})\s*R\s*(\d{2})/);
+  return m ? `${m[1]}${m[2]}${m[3]}` : "";
+}
+function inputToSizeKey(q){
+  return (q||"").replace(/\D/g,"");
+}
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
 /* ================================
    SUPABASE – INITIALISIERUNG (TEST)
 ================================ */
@@ -521,50 +542,18 @@ const CUSTOMER_KEY = "alfacars_customers_final";
 const STOCK_KEY = "alfacars_stock_final_v1";
 
 const DEFAULT_BRANDS = [
-  "Michelin",
-  "Continental",
-  "Goodyear",
-  "Pirelli",
-  "Bridgestone",
-  "Hankook",
-  "Nokian",
-  "Falken",
-  "Berlin Tires",
-  "Syron",
-  "Siro",
-  "Dunlop",
-  "Yokohama",
-  "Kumho",
-  "BFGoodrich",
-  "Firestone",
-  "Uniroyal",
-  "Vredestein",
-  "Nexen",
-  "Toyo",
-  "Cooper",
-  "Sava",
-  "Laufenn",
-  "Barum",
-  "Matador",
-  "Semperit",
-  "General Tire",
-  "GT Radial",
-  "Apollo",
-  "Giti",
-  "Fulda"
+  "Michelin","Continental","Goodyear","Pirelli","Bridgestone",
+  "Hankook","Nokian","Falken","Berlin Tires","Syron","Siro"
 ];
 
 // Optional: Modell-Vorschläge (lokal/offline)
 const TIRE_MODELS = {
   "Berlin Tires": {
-  "Sommer": [
-    "Summer HP 1","Summer HP 2","Summer HP ECO",
-    "Summer UHP 1","Summer UHP 2","Royalmax 2","Marathon 1"
-  ],
-  "Winter": ["Alpine Grip","Alpine Grip C"],
-  "Allwetter": ["All Season 1","All Season 2","All Season Cargo","All Season VAN"]
-},
-"Syron": {
+    "Sommer": ["Summer HP","Eco Drive"],
+    "Winter": ["Winter Grip"],
+    "Allwetter": ["All Season 2","All Weather Pro"]
+  },
+  "Syron": {
     "Sommer": ["Race 1 Plus","Premium Performance"],
     "Winter": ["EverSnow","Ice Guard"],
     "Allwetter": ["All Climate","4 Season"]
@@ -1033,9 +1022,6 @@ function switchView(view) {
   } else if (view === "customers") {
     renderCustomers();
   } else if (view === "stock") {
-    // Scan-Button sicherstellen
-    try { ensureScanButton(); } catch(e) {}
-
     // Lager: immer versuchen, live aus Supabase zu laden (falls verfügbar),
     // danach renderStock() – ansonsten localStorage-Daten anzeigen.
     if (typeof loadStockFromSupabase === "function" && supabaseClient) {
@@ -1815,8 +1801,6 @@ function renderStockSuggestions(){
 
 function openNewStock(){
   if (READ_ONLY) return roAlert();
-  // Ensure model input uses the shared datalist suggestions
-  try { const sm = $("s_model"); if (sm) sm.setAttribute("list","modelList"); } catch(e) {}
   editingStockId = null;
   $("stockModalTitle").textContent="Neuer Lagereintrag";
   $("s_delete").classList.add("hidden");
@@ -1835,8 +1819,6 @@ function openNewStock(){
 
 function openEditStock(id){
   if (READ_ONLY) return roAlert();
-  // Ensure model input uses the shared datalist suggestions
-  try { const sm = $("s_model"); if (sm) sm.setAttribute("list","modelList"); } catch(e) {}
   const s = stock.find(x=>x.id===id);
   if(!s) return;
 
@@ -1890,395 +1872,16 @@ function deleteStockItem(){
   renderStock();
 }
 
-/* =========================================================
-   MODEL SUGGESTIONS (MARKe + SAISON -> MODEL-DROPDOWN)
-   - Works for BOTH: Order modal (f_*) and Stock modal (s_*)
-   - Uses shared datalist: #modelList (already in index.html)
-   ========================================================= */
-
-function getModelsFor(brand, season){
-  brand = clean(brand);
-  season = clean(season);
-  if (!brand || !season) return [];
-  const byBrand = TIRE_MODELS[brand];
-  if (!byBrand) return [];
-  const list = byBrand[season];
-  return Array.isArray(list) ? list.filter(Boolean) : [];
-}
-
-function renderModelSuggestionsFor(brandInputId, seasonInputId, datalistId="modelList"){
-  const brandEl = $(brandInputId);
-  const seasonEl = $(seasonInputId);
-  const list = $(datalistId);
-
-  if (!brandEl || !seasonEl || !list) return;
-
-  const brand = clean(brandEl.value);
-  const season = clean(seasonEl.value);
-
-  const models = getModelsFor(brand, season);
-
-  list.innerHTML = "";
-  if (!models.length) return;
-
-  // Unique + stable order
-  const seen = new Set();
-  const uniq = [];
-  models.forEach(m=>{
-    const k = String(m).trim();
-    if(!k) return;
-    const kk = k.toLowerCase();
-    if(seen.has(kk)) return;
-    seen.add(kk);
-    uniq.push(k);
-  });
-
-  list.innerHTML = uniq.map(m => `<option value="${m}"></option>`).join("");
-}
-
-// Backwards-compat for old call sites
 function renderModelSuggestions(){
-  renderModelSuggestionsFor("s_brand","s_season","modelList");
+  const brand = clean($("s_brand").value);
+  const season = clean($("s_season").value);
+
+  const list = $("modelList");
+  list.innerHTML="";
+
+  const models = (TIRE_MODELS[brand] && TIRE_MODELS[brand][season]) ? TIRE_MODELS[brand][season] : [];
+  list.innerHTML = models.map(m => `<option value="${m}"></option>`).join("");
 }
-
-
-/* =========================================================
-   LAGER – REIFEN SCAN (KAMERA + OCR)
-   - Browser Kamera (Handy)
-   - OCR via Tesseract.js (wird on-demand per CDN geladen)
-   - Erkennt: Reifengröße + Marke (Pflicht), Saison (Bonus)
-   ========================================================= */
-
-function sleepMs(ms){ return new Promise(r=>setTimeout(r, ms)); }
-
-const TIRE_SCAN = {
-  // Saison-Schlüsselwörter (alles wird auf UPPERCASE normalisiert)
-  winter: [
-    "WINTER","ALPIN","ALPIN 6","ALPIN6","BLIZZAK","ULTRAGRIP","WINTERCONTACT",
-    "SOTTOZERO","ICE","ICE GUARD","SNOW","SNOWTRAC","WINTRAC","WINTERGRIP"
-  ],
-  allseason: [
-    "ALL SEASON","ALLSEASON","4SEASON","4 SEASON","4SEASONS","4 SEASONS","4S",
-    "CROSSCLIMATE","VECTOR 4SEASONS","VECTOR4SEASONS","ALLSEASONCONTACT","WEATHER CONTROL",
-    "ALL WEATHER","ALLWEATHER"
-  ]
-};
-
-// Robust: OCR-Text normalisieren (Umlaute/Zeilenumbrüche egal)
-function normalizeOcrText(t){
-  return String(t || "")
-    .replace(/\u00A0/g, " ")
-    .replace(/[^\S\r\n]+/g, " ")
-    .replace(/\r/g, "\n")
-    .replace(/[‐‑–—]/g, "-")
-    .toUpperCase();
-}
-
-function detectTireSize(rawText){
-  const text = normalizeOcrText(rawText);
-
-  // 1) Standard: 205/55 R16 oder 205/55R16
-  let m = text.match(/(\d{3})\s*\/\s*(\d{2})\s*R\s*(\d{2})/);
-  if (!m) m = text.match(/(\d{3})\s*\/\s*(\d{2})\s*R?(\d{2})/); // falls OCR das Leerzeichen verschluckt
-  if (m) return `${m[1]}/${m[2]} R${m[3]}`;
-
-  // 2) Fallback: 205 55 R16 (manchmal ohne Slash)
-  m = text.match(/(\d{3})\s+(\d{2})\s*R\s*(\d{2})/);
-  if (m) return `${m[1]}/${m[2]} R${m[3]}`;
-
-  return "";
-}
-
-function detectBrand(rawText){
-  const text = normalizeOcrText(rawText);
-
-  // Brands aus DEFAULT_BRANDS (UI-Liste) nutzen – robust gegen Sonderzeichen/Leerzeichen
-  // Match als "Wort" (aber bei "Berlin Tires" etc. als Phrase)
-  const brands = Array.isArray(DEFAULT_BRANDS) ? DEFAULT_BRANDS : [];
-  for (const b of brands){
-    const needle = normalizeOcrText(b).replace(/\s+/g, " ").trim();
-    if (!needle) continue;
-
-    // Phrase Match (inkl. Wortgrenzen-ähnlich)
-    // Beispiel: "MICHELIN" oder "BERLIN TIRES"
-    const re = new RegExp(`(^|[^A-Z0-9])${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") }([^A-Z0-9]|$)`, "i");
-    if (re.test(text)) return b;
-  }
-  return "";
-}
-
-function detectSeason(rawText){
-  const text = normalizeOcrText(rawText);
-
-  const hasAny = (arr) => arr.some(k => text.includes(String(k).toUpperCase()));
-  if (hasAny(TIRE_SCAN.allseason)) return "Allwetter";
-  if (hasAny(TIRE_SCAN.winter)) return "Winter";
-
-  // Sommer nur als "Default", wenn nix anderes sicher ist – wir setzen NICHT zwanghaft Sommer
-  return "";
-}
-
-async function ensureTesseractLoaded(){
-  // Tesseract.js global: window.Tesseract
-  if (window.Tesseract) return true;
-
-  // Script on-demand laden (keine HTML-Änderung nötig)
-  const src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-  await new Promise((resolve, reject)=>{
-    const s = document.createElement("script");
-    s.src = src;
-    s.async = true;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error("TESSERACT_LOAD_FAILED"));
-    document.head.appendChild(s);
-  });
-
-  return !!window.Tesseract;
-}
-
-async function ocrImage(dataUrl, onProgress){
-  await ensureTesseractLoaded();
-
-  // API kompatibel halten (v5+)
-  const T = window.Tesseract;
-  const createWorker = (T && (T.createWorker || (T.default && T.default.createWorker))) || null;
-  if (!createWorker) throw new Error("TESSERACT_WORKER_MISSING");
-
-  const worker = await createWorker("eng", 1, {
-    logger: (m)=>{
-      if (typeof onProgress === "function" && m && m.status){
-        // m.progress: 0..1
-        onProgress(m.status, m.progress);
-      }
-    }
-  });
-
-  // Worker-Pfade (CDN) – nötig für Browser
-  try {
-    // v5 unterstützt setParameters, aber Pfade werden intern gezogen.
-    // Einige Umgebungen brauchen explizit workerPath:
-    if (worker && worker.worker && worker.worker.options) {
-      worker.worker.options.workerPath = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js";
-    }
-  } catch(e){}
-
-  let text = "";
-  try{
-    const ret = await worker.recognize(dataUrl);
-    text = ret?.data?.text || "";
-  } finally {
-    try { await worker.terminate(); } catch(e){}
-  }
-  return text;
-}
-
-function ensureScanButton(){
-  const wrap = document.getElementById("btnNewStock")?.parentElement;
-  if (!wrap) return;
-  if (document.getElementById("btnScanTire")) return;
-
-  const btn = document.createElement("button");
-  btn.id = "btnScanTire";
-  btn.className = "btn soft";
-  btn.textContent = "📷 Reifen scannen";
-
-  // Platzierung: neben "+ Lager"
-  wrap.insertBefore(btn, document.getElementById("btnNewStock"));
-
-  btn.onclick = () => {
-    if (READ_ONLY) return roAlert();
-    openTireScanModal();
-  };
-
-  if (READ_ONLY) btn.style.display = "none";
-}
-
-function openTireScanModal(){
-  // Modal lazy-create
-  let modal = document.getElementById("tireScanModal");
-  if (!modal){
-    modal = document.createElement("div");
-    modal.id = "tireScanModal";
-    modal.style.cssText = "position:fixed;inset:0;background:rgba(2,8,23,.55);z-index:10050;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto";
-    modal.innerHTML = `
-      <div style="width:min(920px,96vw);background:#fff;border-radius:18px;box-shadow:0 14px 40px rgba(2,8,23,.22);overflow:hidden;border:1px solid rgba(229,231,235,.95)">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(229,231,235,.95)">
-          <div>
-            <div style="font-weight:950;font-size:16px">📷 Reifen scannen</div>
-            <div style="font-size:12px;color:#64748b;margin-top:2px">Foto machen → Größe/Marke erkennen → Lagerformular öffnen</div>
-          </div>
-          <button id="tireScanClose" class="ghost big" style="border:0;background:transparent;cursor:pointer">✕</button>
-        </div>
-
-        <div style="padding:14px;display:grid;gap:12px">
-          <video id="tireScanVideo" autoplay playsinline style="width:100%;border-radius:14px;background:#0b1220;max-height:58vh;object-fit:cover"></video>
-          <img id="tireScanPreview" style="display:none;width:100%;border-radius:14px;max-height:58vh;object-fit:contain;background:#0b1220"/>
-          <div id="tireScanStatus" style="font-size:12px;color:#334155"></div>
-
-          <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
-            <button id="tireScanRetake" class="btn" style="display:none">Neu aufnehmen</button>
-            <button id="tireScanCapture" class="btn primary">Foto aufnehmen</button>
-            <button id="tireScanCancel" class="btn">Abbrechen</button>
-          </div>
-
-          <div style="font-size:11px;color:#64748b">
-            Tipp: Reifenflanke nah, gerade, gutes Licht. Größe sieht aus wie <b>205/55 R16</b>.
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  }
-
-  const video = modal.querySelector("#tireScanVideo");
-  const img = modal.querySelector("#tireScanPreview");
-  const status = modal.querySelector("#tireScanStatus");
-  const btnCapture = modal.querySelector("#tireScanCapture");
-  const btnRetake = modal.querySelector("#tireScanRetake");
-
-  let stream = null;
-
-  const stopStream = ()=>{
-    try{
-      if (stream){
-        stream.getTracks().forEach(t=>{ try{ t.stop(); } catch(e){} });
-      }
-    } catch(e){}
-    stream = null;
-  };
-
-  const close = ()=>{
-    stopStream();
-    modal.remove();
-  };
-
-  modal.querySelector("#tireScanClose").onclick = close;
-  modal.querySelector("#tireScanCancel").onclick = close;
-
-  const startCamera = async ()=>{
-    status.textContent = "Kamera wird geöffnet …";
-    img.style.display = "none";
-    video.style.display = "block";
-    btnRetake.style.display = "none";
-    btnCapture.style.display = "inline-flex";
-    btnCapture.disabled = false;
-
-    stopStream();
-
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false
-      });
-      video.srcObject = stream;
-      status.textContent = "Bereit. Foto aufnehmen.";
-    } catch(e){
-      console.error(e);
-      status.textContent = "";
-      alert("Kamera konnte nicht geöffnet werden. Bitte Kamera-Zugriff erlauben.");
-      close();
-    }
-  };
-
-  const captureAndRecognize = async ()=>{
-    if (!video || !video.videoWidth){
-      return;
-    }
-    btnCapture.disabled = true;
-    status.textContent = "Foto wird verarbeitet …";
-
-    // Frame capture
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-
-    // Preview anzeigen
-    img.src = dataUrl;
-    img.style.display = "block";
-    video.style.display = "none";
-    btnRetake.style.display = "inline-flex";
-    btnCapture.style.display = "none";
-
-    // Stream stoppen (spart Akku)
-    stopStream();
-
-    // OCR (Weg 2: sichtbar + kurze Analysephase)
-    const analyzeStarted = Date.now();
-    let rawText = "";
-    let ocrOk = false;
-
-    try{
-      status.textContent = "Analysiere Foto …";
-      // kleinen Tick geben, damit UI-Text sicher sichtbar wird
-      await sleepMs(80);
-
-      rawText = await ocrImage(dataUrl, (st, p)=>{
-        const pct = (typeof p === "number") ? Math.round(p*100) : null;
-        status.textContent = pct !== null ? `Texterkennung: ${st} (${pct}%) …` : `Texterkennung: ${st} …`;
-      });
-
-      ocrOk = true;
-    } catch(e){
-      console.error(e);
-      ocrOk = false;
-    }
-
-    // Mindestens ~1.5s Analyse anzeigen (auch wenn OCR sehr schnell fehlschlägt)
-    const elapsed = Date.now() - analyzeStarted;
-    const MIN_ANALYZE_MS = 1500;
-    if (elapsed < MIN_ANALYZE_MS) await sleepMs(MIN_ANALYZE_MS - elapsed);
-
-    if (ocrOk){
-      // Erkennung
-      const size = detectTireSize(rawText);
-      const brand = detectBrand(rawText);
-      const season = detectSeason(rawText);
-
-      // Lagerformular immer öffnen (auch wenn nichts erkannt)
-      openNewStock();
-
-      if (size) document.getElementById("s_size").value = size;
-      if (brand) document.getElementById("s_brand").value = brand;
-      if (season) document.getElementById("s_season").value = season;
-
-      // Menge beim Scan: standardmäßig 1 (du passt an)
-      const qtyEl = document.getElementById("s_qty");
-      if (qtyEl) qtyEl.value = 1;
-
-      // Modell-Vorschläge neu berechnen (falls Marke/Saison gesetzt)
-      try { renderModelSuggestions(); } catch(e){}
-
-      // Hinweis im Lager-Modal (optional, nicht störend)
-      try{
-        const title = document.getElementById("stockModalTitle");
-        if (title) title.textContent = "Neuer Lagereintrag (Scan)";
-      } catch(e){}
-
-      // Scan-Modal schließen
-      close();
-
-    } else {
-      // OCR nicht möglich (z.B. CDN/Worker blockiert) → trotzdem Lagerformular öffnen
-      status.textContent = "Analyse nicht möglich – öffne Lagerformular …";
-      await sleepMs(250);
-      openNewStock();
-      const qtyEl = document.getElementById("s_qty");
-      if (qtyEl) qtyEl.value = 1;
-      close();
-    }
-  };
-
-  btnRetake.onclick = startCamera;
-  btnCapture.onclick = captureAndRecognize;
-
-  // Open
-  startCamera();
-}
-
 
 /* =========================================================
    TAGESABSCHLUSS / BESTELLUNG (bleibt wie vorher)
@@ -2377,7 +1980,7 @@ function exportDayCloseOrder(){
 
 function overrideReadOnlyUI(){
   // Buttons, die Änderungen machen, auf Anzeige-Modus blockieren
-  const ids = ["btnNew","btnSave","btnDelete","btnNewCustomer","cbtnSave","cbtnDelete","btnNewStock","btnScanTire","s_save","s_delete","btnDayClose","d_exportOrder","d_exportAll"];
+  const ids = ["btnNew","btnSave","btnDelete","btnNewCustomer","cbtnSave","cbtnDelete","btnNewStock","s_save","s_delete","btnDayClose","d_exportOrder","d_exportAll"];
   ids.forEach(id=>{
     const el = document.getElementById(id);
     if (el) el.onclick = roAlert;
@@ -2464,19 +2067,6 @@ if (READ_ONLY) overrideReadOnlyUI();
   });
 })();
 
-
-(()=>{ 
-  const el = $("f_brand");
-  if (el) el.addEventListener("input", ()=>renderModelSuggestionsFor("f_brand","f_season","modelList"));
-  else console.warn("⚠️ Element fehlt: f_brand");
-})();
-(()=>{ 
-  const el = $("f_season");
-  if (el) el.addEventListener("change", ()=>renderModelSuggestionsFor("f_brand","f_season","modelList"));
-  else console.warn("⚠️ Element fehlt: f_season");
-})();
-
-
 (()=>{ const el=$("s_size"); if(!el){ console.warn("⚠️ Element fehlt: s_size"); return; }
   el.addEventListener("input",()=>{
     el.value = normalizeTireSize(el.value);
@@ -2498,10 +2088,6 @@ async function initApp() {
   if (typeof loadStockFromSupabase === "function" && supabaseClient) {
     await loadStockFromSupabase();
   }
-
-  // Scan-Button im Lager einhängen (nur UI-Erweiterung)
-  try { ensureScanButton(); } catch(e) {}
-
   switchView("orders");
 }
 
@@ -2563,4 +2149,32 @@ function bindSafeTap(el, handler){
   });
 
   el.addEventListener("click", handler);
+}
+
+function matchesSearch(item, query){
+  const q = normalizeText(query);
+  if (!q) return true;
+  const qNums = inputToSizeKey(q);
+  const sizeKey = sizeToKey(item.size || item.s_size || "");
+  const brand = normalizeText(item.brand || item.s_brand || "");
+  const hay = normalizeText(`${item.size||item.s_size||""} ${item.brand||item.s_brand||""} ${item.model||item.s_model||""}`);
+  if (qNums){
+    if (sizeKey && sizeKey.includes(qNums)) return true;
+    if (qNums.length===5 && sizeKey.startsWith(qNums)) return true;
+    if (qNums.length===2 && sizeKey.endsWith(qNums)) return true;
+  }
+  if (brand.includes(q)) return true;
+  if (hay.includes(q)) return true;
+  return false;
+}
+
+function ensureMobileModelSuggestions(){
+  if (!isIOS()) return;
+  if (document.getElementById("mobileModelSuggestions")) return;
+  const modelInput = document.getElementById("s_model");
+  if (!modelInput) return;
+  const box = document.createElement("div");
+  box.id = "mobileModelSuggestions";
+  box.style.cssText = "margin-top:6px; display:none; gap:6px; flex-wrap:wrap;";
+  modelInput.parentNode.appendChild(box);
 }
