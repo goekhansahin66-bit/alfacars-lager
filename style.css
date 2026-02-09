@@ -1,434 +1,523 @@
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Alfacars – Reifen / Kunden / Lager</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Supabase UMD (window.supabase) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-</head>
-<body>
-  <div class="shell">
-    <div class="topbar">
-      <div>
-        <div class="brand-title">Alfacars</div>
-        <div class="brand-sub">Bestellungen · Kunden · Lager</div>
-      </div>
+:root{
+  --bg:#f4f6fb;
+  --panel:#ffffff;
+  --text:#0f172a;
+  --muted:#64748b;
+  --line:#e5e7eb;
+  --shadow: 0 14px 40px rgba(2,8,23,.08);
+  --shadow-soft: 0 10px 24px rgba(2,8,23,.08);
+  --primary:#2563eb;
+  --primary-2:#1d4ed8;
+  --danger:#dc2626;
+  --warn:#f59e0b;
+  --success:#16a34a;
+  --chip:#f1f5f9;
+}
 
-      <div class="top-actions">
-        <div class="search">
-          <span class="icon">🔎</span>
-          <input id="searchInput" placeholder="Suchen (Kunde, Telefon, Kennzeichen, Größe, Marke …)" />
-          <button class="ghost" id="clearSearch" title="Suche löschen">✕</button>
-        </div>
+*{box-sizing:border-box}
+html,body{height:100%}
+body{ -webkit-tap-highlight-color: transparent; }
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  background: radial-gradient(1200px 800px at 20% -10%, #e9efff, transparent 60%),
+              radial-gradient(1200px 800px at 100% 0%, #eaf7ff, transparent 55%),
+              var(--bg);
+  color:var(--text);
+}
 
-        <button class="btn primary" id="btnNew">+ Bestellung</button>
-        <button class="btn soft" id="btnDayClose">Tagesabschluss</button>
-        <button class="btn soft" id="btnExportAll">Export</button>
-      </div>
-    </div>
+.shell{
+  min-height:100%;
+  display:flex;
+  flex-direction:column;
+}
 
-    <div class="tabs">
-      <button class="tab active" data-tab="orders">Bestellungen</button>
-      <button class="tab" data-tab="archive">Archiv</button>
-      <button class="tab" data-tab="customers">Kunden</button>
-      <button class="tab" data-tab="stock">Lager</button>
-    </div>
+.topbar{
+  position:sticky; top:0; z-index:10;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  padding:16px 18px;
+  background: rgba(255,255,255,.72);
+  backdrop-filter: blur(10px);
+  border-bottom:1px solid rgba(229,231,235,.9);
+}
 
-    <!-- ===== ORDERS BOARD ===== -->
-    <div class="board" id="ordersBoard">
-      <div class="column">
-        <div class="col-head">
-          <div class="col-title"><span class="dot dot-grey"></span> Bestellt</div>
-          <div class="col-count" id="count-Bestellt">0</div>
-        </div>
-        <div class="col-body" id="col-Bestellt"></div>
-      </div>
+.brand-title{
+  font-size:20px;
+  font-weight:900;
+  letter-spacing:.2px;
+}
+.brand-sub{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:2px;
+}
 
-      <div class="column">
-        <div class="col-head">
-          <div class="col-title"><span class="dot dot-yellow"></span> Anrufen</div>
-          <div class="col-count" id="count-Anrufen">0</div>
-        </div>
-        <div class="col-body" id="col-Anrufen"></div>
-      </div>
+.top-actions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  width:min(860px, 70vw);
+  justify-content:flex-end;
+}
 
-      <div class="column">
-        <div class="col-head">
-          <div class="col-title"><span class="dot dot-green"></span> Erledigt</div>
-          <div class="col-count" id="count-Erledigt">0</div>
-        </div>
-        <div class="col-body" id="col-Erledigt"></div>
-      </div>
-    </div>
+.search{
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px 10px;
+  box-shadow: var(--shadow-soft);
+}
+.search .icon{opacity:.55}
+.search input{
+  flex:1;
+  border:0;
+  outline:none;
+  font-size:14px;
+  background:transparent;
+  color:var(--text);
+}
+.ghost{
+  border:0; background:transparent; cursor:pointer;
+  color:var(--muted);
+  font-size:18px;
+  line-height:1;
+  padding:6px 10px;
+  border-radius:10px;
+}
+.ghost:hover{background:rgba(2,8,23,.05)}
+.ghost.big{font-size:22px}
 
-    <!-- ===== ARCHIVE BOARD ===== -->
-    <div class="board hidden" id="archiveBoard">
-      <div class="column" style="grid-column:1/-1;">
-        <div class="col-head">
-          <div class="col-title"><span class="dot dot-grey"></span> Archiv</div>
-          <div class="col-count" id="count-Archiv">0</div>
-        </div>
-        <div class="col-body" id="col-Archiv"></div>
-      </div>
-    </div>
+.btn{
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:14px;
+  font-weight:800;
+  cursor:pointer;
+  box-shadow: var(--shadow-soft);
+}
+.btn:hover{transform: translateY(-1px)}
+.btn:active{transform: translateY(0px)}
+.btn.primary{
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-color: transparent;
+  color:#fff;
+}
+.btn.soft{background:#fff;border-color:var(--line);box-shadow:none}
+.btn.warn{background:rgba(245,158,11,.16); border-color:rgba(245,158,11,.25); box-shadow:none}
+.btn.success{background:rgba(22,163,74,.16); border-color:rgba(22,163,74,.25); box-shadow:none}
+.btn.danger{background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.25); color:#991b1b; box-shadow:none}
 
-    <!-- ===== CUSTOMERS BOARD ===== -->
-    <div class="board hidden" id="customerBoard">
-      <div class="column" style="grid-column:1/-1;">
-        <div class="col-head">
-          <div class="col-title">Kunden</div>
-          <div class="col-count" id="reachBox"> </div>
-        </div>
+.tabs{
+  display:flex;
+  gap:8px;
+  padding:10px 18px 0 18px;
+}
+.tab{
+  padding:10px 12px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.7);
+  cursor:pointer;
+  font-weight:800;
+  color:var(--muted);
+}
+.tab.active{
+  color:var(--text);
+  background:#fff;
+  box-shadow: var(--shadow-soft);
+}
+.tab:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
 
-        <div class="col-body">
-          <div class="search" style="box-shadow:none; margin-bottom:12px;">
-            <span class="icon">🔎</span>
-            <input id="customerSearchInput" placeholder="Kunden suchen (Name, Telefon, Kennzeichen …)" />
-          </div>
-          <div id="customerList"></div>
-          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn primary" id="btnNewCustomer">+ Kunde</button>
-          </div>
-        </div>
-      </div>
-    </div>
+.board{
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:14px;
+  padding:12px 18px 18px 18px;
+  flex:1;
+  min-height:0;
+}
 
-    <!-- ===== STOCK BOARD ===== -->
-    <div class="board hidden" id="stockBoard">
-      <div class="column" style="grid-column:1/-1;">
-        <div class="col-head">
-          <div class="col-title">Lager</div>
-          <div class="col-count"><span id="stockNeedCount">0</span> fehlen</div>
-        </div>
+.column{
+  background: rgba(255,255,255,.55);
+  border:1px solid rgba(229,231,235,.9);
+  border-radius:18px;
+  box-shadow: var(--shadow-soft);
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.col-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 12px 10px 12px;
+  border-bottom:1px solid rgba(229,231,235,.9);
+}
+.col-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:900;
+}
+.dot{width:10px;height:10px;border-radius:999px}
+.dot-grey{background:#94a3b8}
+.dot-yellow{background:#f59e0b}
+.dot-green{background:#16a34a}
+.col-count{
+  font-size:12px;
+  padding:6px 10px;
+  border-radius:999px;
+  background: rgba(15,23,42,.06);
+  color: rgba(15,23,42,.75);
+  font-weight:900;
+}
 
-        <div class="col-body">
-          <div class="search" style="box-shadow:none; margin-bottom:12px;">
-            <span class="icon">🔎</span>
-            <input id="stockSearchInput" placeholder="Lager suchen (Größe, Marke, Saison, DOT …)" />
-          </div>
+.col-body{
+  -webkit-overflow-scrolling: touch;
+  padding:12px;
+  overflow:auto;
+  min-height:0;
+}
+
+.card{
+  background:var(--panel);
+  border:1px solid rgba(229,231,235,.95);
+  border-radius:16px;
+  padding:12px;
+  box-shadow: var(--shadow-soft);
+  margin-bottom:12px;
+  cursor:pointer;
+}
+.card:hover{transform: translateY(-1px)}
+.card-top{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+}
+.card-title{
+  font-weight:950;
+  font-size:15px;
+}
+.card-sub{
+  color:var(--muted);
+  font-size:12px;
+  margin-top:3px;
+}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  background:var(--chip);
+  border:1px solid rgba(148,163,184,.25);
+  border-radius:999px;
+  font-weight:900;
+  font-size:12px;
+  white-space:nowrap;
+}
+.pill.small{padding:5px 9px; font-size:11px}
+.pill.grey{background:rgba(148,163,184,.14)}
+.pill.yellow{background:rgba(245,158,11,.16)}
+.pill.green{background:rgba(22,163,74,.16)}
+
+.card-grid{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+.kv{
+  background: rgba(2,8,23,.03);
+  border:1px solid rgba(148,163,184,.18);
+  border-radius:12px;
+  padding:8px 10px;
+}
+.k{font-size:11px;color:var(--muted);font-weight:800}
+.v{font-size:13px;font-weight:900;margin-top:2px;word-break:break-word}
+
+.note{
+  margin-top:10px;
+  font-size:12px;
+  color: rgba(15,23,42,.82);
+  background: rgba(37,99,235,.06);
+  border:1px solid rgba(37,99,235,.12);
+  border-radius:12px;
+  padding:8px 10px;
+}
+
+.modal{
+  position:fixed;
+  inset:0;
+  background: rgba(2,8,23,.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  z-index:100;
+}
+.modal.hidden{display:none}
+
+/* Generic helper */
+.hidden{display:none !important;}
+
+.modal-card{
+  width:min(920px, 96vw);
+  background:var(--panel);
+  border:1px solid rgba(229,231,235,.95);
+  border-radius:18px;
+  box-shadow: var(--shadow);
+  overflow:hidden;
+}
+.modal-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 14px 10px 14px;
+  border-bottom:1px solid rgba(229,231,235,.95);
+}
+.modal-title{font-weight:950;font-size:16px}
+.modal-sub{color:var(--muted);font-size:12px;margin-top:3px}
+
+.form-grid{
+  padding:14px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+.field label{
+  display:block;
+  font-size:12px;
+  color:var(--muted);
+  font-weight:900;
+  margin-bottom:6px;
+}
+.field input, .field select, .field textarea{
+  width:100%;
+  padding:10px 10px;
+  border-radius:14px;
+  border:1px solid rgba(209,213,219,.9);
+  outline:none;
+  background:#fff;
+  font-size:14px;
+}
+.field textarea{resize:none}
+.hint{margin-top:6px;font-size:11px;color:rgba(100,116,139,.95)}
+.span-2{grid-column:1 / -1}
+
+.calc-row{
+  display:flex;
+  gap:10px;
+  padding:0 14px 12px 14px;
+}
+.calc{
+  flex:1;
+  background: rgba(2,8,23,.03);
+  border:1px solid rgba(148,163,184,.18);
+  border-radius:16px;
+  padding:10px 12px;
+}
+.calc-label{font-size:11px;color:var(--muted);font-weight:900}
+.calc-value{font-size:18px;font-weight:950;margin-top:2px}
+
+.modal-actions{
+  padding:12px 14px 14px 14px;
+  border-top:1px solid rgba(229,231,235,.95);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.left-actions, .right-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.modal-foot{
+  padding:0 14px 14px 14px;
+}
+.foot-note{font-size:11px;color:var(--muted);font-weight:800}
+
+.foot{
+  padding:10px 18px 16px 18px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+.muted{color:var(--muted)}
+
+/* =========================================================
+   NEU: Status-Farben für Karten (nur angehängt)
+   ========================================================= */
+.card.status-bestellt{
+  background: rgba(148,163,184,.14);
+  border-color: rgba(148,163,184,.35);
+}
+.card.status-anrufen{
+  background: rgba(245,158,11,.18);
+  border-color: rgba(245,158,11,.35);
+}
+.card.status-erledigt{
+  background: rgba(22,163,74,.18);
+  border-color: rgba(22,163,74,.35);
+}
+/* ==================================================
+   VIEW-SICHTBARKEIT – FINAL & ERZWUNGEN
+   ================================================== */
+
+/* Versteckte Seiten (Archiv / Kunden / später Lager)
+   dürfen NICHT im Grid bleiben */
+.board.hidden {
+  display: none !important;
+}
+
+/* ==================================================
+   LAGER – Zusätze
+   ================================================== */
+.pill.red{background:rgba(220,38,38,.14);border-color:rgba(220,38,38,.25);color:#991b1b}
+.stock-row{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  justify-content:space-between;
+}
+.stock-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.qtybox{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.qty-input{
+  width:84px;
+  text-align:center;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid rgba(209,213,219,.9);
+  font-weight:900;
+}
+.section-title{
+  font-weight:950;
+  margin:8px 0 10px 0;
+}
+.note.list{
+  background: rgba(2,8,23,.03);
+  border:1px solid rgba(148,163,184,.18);
+}
+.small-muted{font-size:11px;color:var(--muted);font-weight:800}
 
 
-          <!-- ===== MOBILE: LAGER-SCANNER (FOTO → MARKE/MODELL/GRÖSSE) ===== -->
-          <div class="scanner-card" id="scannerCard">
-            <div class="scanner-row">
-              <div>
-                <div class="scanner-title">📷 Lager-Scanner</div>
-                <div class="scanner-sub">Foto vom Reifen/Label → Marke, Modell & Größe automatisch setzen</div>
-              </div>
-              <span class="pill grey" id="scannerStatusPill">Bereit</span>
-            </div>
 
-            <div class="scanner-actions">
-              <label class="btn primary" for="scannerInput">Foto aufnehmen</label>
-              <input id="scannerInput" class="hidden-file" type="file" accept="image/*" capture="environment" />
-              <button class="btn" id="scannerClear" type="button">Zurücksetzen</button>
-            </div>
+/* =========================
+   READ-ONLY MODUS (iPhone)
+   ========================= */
+.read-only #btnNew,
+.read-only #btnExportAll,
+.read-only #btnNewCustomer,
+.read-only #btnNewStock,
+.read-only #btnDayClose,
+.read-only #btnSave,
+.read-only #btnDelete,
+.read-only #cbtnSave,
+.read-only #cbtnDelete,
+.read-only #s_save,
+.read-only #s_delete,
+.read-only #d_exportOrder,
+.read-only #d_exportAll{
+  display:none !important;
+}
 
-            <div class="scanner-preview hidden" id="scannerPreviewWrap">
-              <img id="scannerPreview" alt="Vorschau" />
-            </div>
+/* Lager-Mengen-Steuerung ausblenden */
+.read-only .qtybox{
+  display:none !important;
+}
 
-            <div class="scanner-result hidden" id="scannerResult">
-              <div class="scanner-result-grid">
-                <div class="kv"><div class="k">Marke</div><div class="v" id="scanBrand">—</div></div>
-                <div class="kv"><div class="k">Modell</div><div class="v" id="scanModel">—</div></div>
-                <div class="kv"><div class="k">Größe</div><div class="v" id="scanSize">—</div></div>
-                <div class="kv"><div class="k">Saison</div><div class="v" id="scanSeason">—</div></div>
-                <div class="kv"><div class="k">DOT</div><div class="v" id="scanDot">—</div></div>
-                <div class="kv"><div class="k">Sicherheit</div><div class="v" id="scanConf">—</div></div>
-              </div>
+/* Kleine Aktions-Buttons (z.B. Status-Pfeile / Bearbeiten / + Bestellung) ausblenden */
+.read-only button.pill.small{
+  display:none !important;
+}
 
-              <div class="scanner-actions" style="margin-top:10px">
-                <button class="btn success" id="scannerApplyToStock" type="button">In Lager übernehmen</button>
-                <button class="btn" id="scannerEditBeforeApply" type="button">Bearbeiten</button>
-              </div>
+/* Rechtsklick-Hinweise am iPhone ausblenden */
+.read-only .small-muted{
+  display:none;
+}
+/* ✅ FIX: Mobile Höhe für Boards */
+@supports (-webkit-touch-callout: none) {
+  .board {
+    min-height: calc(100svh - 140px);
+    height: auto;
+  }
+}
 
-              <div class="hint" style="margin-top:8px">
-                Hinweis: Erkennung ist vorbereitet (Stub). Für echte Auto-Erkennung: Vision-API anbinden.
-              </div>
-            </div>
-          </div>
 
-          <div id="stockNeedBox" class="note hidden"></div>
-          <div id="stockList"></div>
+/* ================================
+   MOBILE FIXES (iPhone / Android)
+================================ */
+@media (max-width: 900px) {
+  .top-actions{
+    width:100%;
+    flex-wrap:wrap;
+    justify-content:flex-start;
+  }
+  .search{
+    width:100%;
+    flex:1 1 100%;
+  }
+  .board{
+    grid-template-columns: 1fr;
+  }
+  .card, .btn, .pill{
+    touch-action: manipulation;
+  }
+  .modal-card{
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+}
 
-          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <button class="btn primary" id="btnNewStock">+ Lager</button>
-          </div>
 
-          <div class="hint" style="margin-top:10px;">
-            Tipp: Read-Only nur mit <b>?ro=1</b>. Ohne Parameter ist Handy-Bearbeitung aktiv.
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- ===== FOOTER ===== -->
-    <div class="foot">
-      <span class="muted">Bereit</span>
-    </div>
-  </div>
+/* =========================================
+   FIX: MODAL SCROLL (PC + HANDY)
+   ========================================= */
+.modal{
+  align-items:flex-start;
+}
 
-  <!-- ================= ORDER MODAL ================= -->
-  <div class="modal hidden" id="modal">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <div class="modal-title" id="modalTitle">Bestellung</div>
-          <div class="modal-sub">Daten eingeben & speichern</div>
-        </div>
-        <button class="ghost big" id="btnClose">✕</button>
-      </div>
+.modal-card{
+  max-height:92vh;
+  display:flex;
+  flex-direction:column;
+}
 
-      <div class="form-grid">
-        <div class="field">
-          <label>Kunde</label>
-          <input id="f_name" placeholder="Name" />
-          <div class="hint">Telefon/Kennzeichen helfen beim Wiederfinden.</div>
-        </div>
-        <div class="field">
-          <label>Telefon</label>
-          <input id="f_phone" placeholder="z.B. 0176..." />
-        </div>
+.modal-card .form-grid,
+.modal-card .calc-row,
+.modal-card .modal-actions,
+.modal-card .modal-foot{
+  overflow-y:auto;
+}
 
-        <div class="field">
-          <label>Kennzeichen</label>
-          <input id="f_plate" placeholder="z.B. B-AB 1234" />
-        </div>
-        <div class="field">
-          <label>E-Mail</label>
-          <input id="f_email" placeholder="optional" />
-        </div>
-
-        <div class="field">
-          <label>Straße</label>
-          <input id="f_street" placeholder="optional" />
-        </div>
-        <div class="field">
-          <label>PLZ</label>
-          <input id="f_zip" placeholder="optional" />
-        </div>
-
-        <div class="field">
-          <label>Ort</label>
-          <input id="f_city" placeholder="optional" />
-        </div>
-        <div class="field">
-          <label>Herkunft</label>
-          <input id="f_source" placeholder="z.B. Empfehlung / Google" />
-        </div>
-
-        <div class="field">
-          <label>Reifengröße</label>
-          <input id="f_size" placeholder="z.B. 205/55 R16" />
-        </div>
-        <div class="field">
-          <label>Marke</label>
-          <input id="f_brand" list="brandList" placeholder="z.B. Michelin" />
-          <datalist id="brandList"></datalist>
-        </div>
-
-        <div class="field">
-          <label>Saison</label>
-          <select id="f_season">
-            <option value="">Bitte wählen</option>
-            <option>Sommer</option>
-            <option>Winter</option>
-            <option>Allwetter</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Modell</label>
-          <input id="f_model" list="modelList" placeholder="optional" />
-          <datalist id="modelList"></datalist>
-        </div>
-
-        <div class="field">
-          <label>Menge</label>
-          <input id="f_qty" type="number" min="0" step="1" />
-        </div>
-        <div class="field">
-          <label>Preis pro Stück</label>
-          <input id="f_unit" type="number" min="0" step="0.01" />
-        </div>
-
-        <div class="field">
-          <label>Anzahlung</label>
-          <input id="f_deposit" type="number" min="0" step="0.01" />
-        </div>
-        <div class="field">
-          <label>Felgen</label>
-          <input id="f_rims" placeholder="optional" />
-        </div>
-
-        <div class="field span-2">
-          <label>Notiz</label>
-          <textarea id="f_note" rows="3" placeholder="optional"></textarea>
-        </div>
-
-        <div class="field">
-          <label>Status</label>
-          <select id="f_status">
-            <option>Bestellt</option>
-            <option>Anrufen</option>
-            <option>Erledigt</option>
-            <option>Archiv</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Bestellquelle</label>
-          <input id="f_orderSource" placeholder="supabase / lokal / ..." />
-        </div>
-      </div>
-
-      <div class="calc-row">
-        <div class="calc">
-          <div class="calc-label">Gesamt</div>
-          <div class="calc-value" id="calc_total">0,00 €</div>
-        </div>
-        <div class="calc">
-          <div class="calc-label">Restbetrag</div>
-          <div class="calc-value" id="calc_rest">0,00 €</div>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <div class="left-actions">
-          <button class="btn danger" id="btnDelete">Löschen</button>
-        </div>
-        <div class="right-actions">
-          <button class="btn" id="btnCancel">Abbrechen</button>
-          <button class="btn primary" id="btnSave">Speichern</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= CUSTOMER MODAL ================= -->
-  <div class="modal hidden" id="customerModal">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <div class="modal-title" id="customerModalTitle">Kunde</div>
-          <div class="modal-sub">Kundendaten</div>
-        </div>
-        <button class="ghost big" id="cbtnClose">✕</button>
-      </div>
-
-      <div class="form-grid">
-        <div class="field"><label>Name</label><input id="c_name" /></div>
-        <div class="field"><label>Telefon</label><input id="c_phone" /></div>
-
-        <div class="field"><label>Kennzeichen</label><input id="c_plate" /></div>
-        <div class="field"><label>E-Mail</label><input id="c_email" /></div>
-
-        <div class="field"><label>Straße</label><input id="c_street" /></div>
-        <div class="field"><label>PLZ</label><input id="c_zip" /></div>
-
-        <div class="field"><label>Ort</label><input id="c_city" /></div>
-        <div class="field"><label>Herkunft</label><input id="c_source" /></div>
-      </div>
-
-      <div class="modal-actions">
-        <div class="left-actions">
-          <button class="btn danger" id="cbtnDelete">Löschen</button>
-        </div>
-        <div class="right-actions">
-          <button class="btn" id="cbtnCancel">Abbrechen</button>
-          <button class="btn primary" id="cbtnSave">Speichern</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= STOCK MODAL ================= -->
-  <div class="modal hidden" id="stockModal">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <div class="modal-title" id="stockModalTitle">Lager</div>
-          <div class="modal-sub">Artikel hinzufügen / ändern</div>
-        </div>
-        <button class="ghost big" id="s_close">✕</button>
-      </div>
-
-      <div class="form-grid">
-        <div class="field"><label>Reifengröße</label><input id="s_size" placeholder="z.B. 205/55 R16" /></div>
-        <div class="field"><label>Marke</label><input id="s_brand" list="s_brandList" /></div>
-        <datalist id="s_brandList"></datalist>
-
-        <div class="field">
-          <label>Saison</label>
-          <select id="s_season">
-            <option value="">Bitte wählen</option>
-            <option>Sommer</option>
-            <option>Winter</option>
-            <option>Allwetter</option>
-          </select>
-        </div>
-
-        <div class="field"><label>Modell</label><input id="s_model" list="modelList" placeholder="optional" /></div>
-        <datalist id="modelList"></datalist>
-
-        <div class="field"><label>DOT</label><input id="s_dot" placeholder="optional (z.B. 2423)" /></div>
-        <div class="field"><label>Menge</label><input id="s_qty" type="number" min="0" step="1" /></div>
-      </div>
-
-      <div class="modal-actions">
-        <div class="left-actions">
-          <button class="btn danger hidden" id="s_delete">Löschen</button>
-        </div>
-        <div class="right-actions">
-          <button class="btn" id="s_cancel">Abbrechen</button>
-          <button class="btn primary" id="s_save">Speichern</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= DAY CLOSE MODAL ================= -->
-  <div class="modal hidden" id="dayCloseModal">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <div class="modal-title">Tagesabschluss</div>
-          <div class="modal-sub">Bestellliste + Export</div>
-        </div>
-        <button class="ghost big" id="d_close">✕</button>
-      </div>
-
-      <div class="modal-foot">
-        <div class="section-title">Fehlende Lagerartikel</div>
-        <div class="note list" id="dayCloseList"></div>
-
-        <div class="form-grid" style="padding:14px 0 0 0;">
-          <div class="field">
-            <label>Lieferant</label>
-            <input id="d_supplier" placeholder="optional" />
-          </div>
-          <div class="field">
-            <label>Notiz</label>
-            <input id="d_note" placeholder="optional" />
-          </div>
-        </div>
-
-        <div class="hint">Export erstellt eine Excel-Datei mit Tabs (Bestellungen/Kunden/Lager) + Backup JSON.</div>
-      </div>
-
-      <div class="modal-actions">
-        <div class="left-actions"></div>
-        <div class="right-actions">
-          <button class="btn" id="d_cancel">Schließen</button>
-          <button class="btn soft" id="d_exportOrder">Bestellliste (CSV)</button>
-          <button class="btn primary" id="d_exportAll">Export (Excel + Backup)</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="app.js"></script>
-</body>
-</html>
+/* =========================================
+   FIX: MOBILE TOUCH SAFETY
+   ========================================= */
+@media (max-width:768px){
+  .card{
+    cursor:default;
+    touch-action: pan-y;
+  }
+}
