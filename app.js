@@ -1,3 +1,21 @@
+
+// ===== LAGER-SUCHE NORMALISIERUNG (FINAL) =====
+function normalizeText(s){
+  return (s||"")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function sizeToKey(size){
+  if(!size) return "";
+  const m = size.toUpperCase().match(/(\d{3})\s*\/\s*(\d{2})\s*R\s*(\d{2})/);
+  return m ? `${m[1]}${m[2]}${m[3]}` : "";
+}
+function inputToSizeKey(q){
+  return (q||"").replace(/\D/g,"");
+}
+
 /* ================================
    SUPABASE – INITIALISIERUNG (TEST)
 ================================ */
@@ -1704,8 +1722,28 @@ function renderStock(){
   $("stockList").innerHTML="";
 
   const filtered = stock.filter(s=>{
-    const blob=[s.size,s.brand,s.season,s.model,s.dot].join(" ").toLowerCase();
-    return !q || blob.includes(q);
+    
+const normQ = normalizeText(q);
+if(!normQ) return true;
+
+const qNums = inputToSizeKey(normQ);
+const sizeKey = sizeToKey(s.size);
+const brand = normalizeText(s.brand);
+
+// Größe zuerst (Hauptregel)
+if(qNums){
+  if(sizeKey && sizeKey.includes(qNums)) return true;
+  if(qNums.length===5 && sizeKey.startsWith(qNums)) return true; // 20555
+  if(qNums.length===2 && sizeKey.endsWith(qNums)) return true;   // R16
+}
+
+// Marke optional
+if(brand.includes(normQ)) return true;
+
+// Fallback: freier Text (sanft)
+const blob = normalizeText([s.size,s.brand,s.season,s.model,s.dot].join(" "));
+return blob.includes(normQ);
+
   });
 
   filtered.forEach(s=>{
