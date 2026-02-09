@@ -2129,22 +2129,4 @@ function bindSafeTap(el, handler){
 
   el.addEventListener("click", handler);
 }
-/* =================================================
-   MOBILE FIX: Marke & Modell wie am PC anzeigen
-   ================================================= */
-(function(){
-  const isMobile = window.matchMedia("(max-width: 900px)").matches;
-  if(!isMobile) return;
 
-  ["f_brand","f_model","s_brand","s_model"].forEach(id=>{
-    const el = document.getElementById(id);
-    if(!el) return;
-
-    el.addEventListener("focus", ()=>{
-      // iOS / Mobile datalist trigger
-      const v = el.value;
-      el.value = " ";
-      setTimeout(()=>{ el.value = v; }, 10);
-    });
-  });
-})();
