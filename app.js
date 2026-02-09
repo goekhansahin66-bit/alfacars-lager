@@ -2054,6 +2054,188 @@ if (READ_ONLY) overrideReadOnlyUI();
 (()=>{ const el=$("s_brand"); if(el) el.addEventListener("input",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_brand"); })();
 (()=>{ const el=$("s_season"); if(el) el.addEventListener("change",renderModelSuggestions); else console.warn("⚠️ Element fehlt: s_season"); })();
 
+
+/* =========================================================
+   LAGER-SCANNER (MOBILE)
+   - Foto aufnehmen → Marke/Modell/Größe vorschlagen
+   - Stub: echte Erkennung braucht Vision-API (Backend)
+   ========================================================= */
+
+let __lastScan = null;
+
+function isMobileLike(){
+  try { return matchMedia("(max-width: 900px)").matches; } catch(e){ return false; }
+}
+
+function setScannerPill(text, tone){
+  const pill = $("scannerStatusPill");
+  if(!pill) return;
+  pill.textContent = text;
+  pill.classList.remove("grey","yellow","green","red");
+  if (tone) pill.classList.add(tone);
+}
+
+function resetScannerUI(){
+  __lastScan = null;
+
+  const wrap = $("scannerPreviewWrap");
+  const img = $("scannerPreview");
+  const res = $("scannerResult");
+
+  if (wrap) wrap.classList.add("hidden");
+  if (img) img.src = "";
+  if (res) res.classList.add("hidden");
+
+  ["scanBrand","scanModel","scanSize","scanSeason","scanDot","scanConf"].forEach(id=>{
+    const el = $(id);
+    if (el) el.textContent = "—";
+  });
+
+  setScannerPill("Bereit","grey");
+}
+
+function fillScanUI(scan){
+  const safe = (v)=> (v===null || v===undefined || v==="") ? "—" : String(v);
+  $("scanBrand").textContent  = safe(scan.brand);
+  $("scanModel").textContent  = safe(scan.model);
+  $("scanSize").textContent   = safe(scan.size);
+  $("scanSeason").textContent = safe(scan.season);
+  $("scanDot").textContent    = safe(scan.dot);
+  $("scanConf").textContent   = safe(scan.confidence);
+}
+
+async function detectTireFromImage(file){
+  // ✅ Stub (AI-ready): Hier später API Call einbauen:
+  // - fetch("/api/vision", { method:"POST", body: formData })
+  // - Antwort: { brand, model, size, season, dot, confidence }
+  // Ohne Backend kann der Browser kein zuverlässiges OCR/Logo-Detection.
+
+  const name = (file && file.name) ? file.name.toLowerCase() : "";
+  const pick = (arr)=> arr[Math.floor(Math.random()*arr.length)];
+  const brand = DEFAULT_BRANDS && DEFAULT_BRANDS.length ? pick(DEFAULT_BRANDS) : "—";
+  const season = pick(["Sommer","Winter","Allwetter"]);
+  const modelList = (TIRE_MODELS && TIRE_MODELS[brand] && TIRE_MODELS[brand][season]) ? TIRE_MODELS[brand][season] : [];
+  const model = modelList.length ? pick(modelList) : "";
+
+  // sehr einfache Heuristik: wenn Dateiname eine Größe enthält
+  let size = "";
+  const m = name.match(/(\d{3})[\/\-_ ]?(\d{2})[ ]?(r)?[ ]?(\d{2})/i);
+  if(m){
+    size = `${m[1]}/${m[2]} R${m[4]}`;
+  } else {
+    size = pick(["205/55 R16","195/65 R15","225/45 R17","235/35 R19"]);
+  }
+
+  // DOT Heuristik
+  let dot = "";
+  const d = name.match(/dot[ _-]?(\d{4})/i);
+  if(d) dot = d[1];
+
+  // "confidence"
+  const confidence = pick(["86%","89%","92%","95%"]);
+
+  // Kleine Delay für UX
+  await new Promise(r=>setTimeout(r, 600));
+
+  return { brand, model, size, season, dot, confidence };
+}
+
+function applyScanToStock(scan, openModal=true){
+  if (!scan) return;
+  if (READ_ONLY) return roAlert();
+
+  // Wenn wir im Lager sind: direkt neues Stock öffnen & vorbefüllen
+  if (openModal){
+    openNewStock();
+  }
+
+  if ($("s_brand")) $("s_brand").value = scan.brand || "";
+  if ($("s_model")) $("s_model").value = scan.model || "";
+  if ($("s_size"))  $("s_size").value  = scan.size || "";
+  if ($("s_season")) $("s_season").value = scan.season || "";
+  if ($("s_dot")) $("s_dot").value = scan.dot || "";
+
+  // Menge sinnvoll setzen
+  if ($("s_qty") && !$("s_qty").value) $("s_qty").value = TARGET_QTY;
+
+  renderModelSuggestions();
+}
+
+function initStockScanner(){
+  const input = $("scannerInput");
+  const clear = $("scannerClear");
+  const card = $("scannerCard");
+
+  // Nicht crashen wenn HTML fehlt
+  if(!input || !card) return;
+
+  // Optional: Scanner eher nur auf Mobile prominent
+  if (!isMobileLike()){
+    // Desktop: kleiner Hinweis, aber sichtbar
+    card.style.opacity = "0.9";
+  }
+
+  resetScannerUI();
+
+  if(clear){
+    bindTap(clear, (e)=>{
+      e.preventDefault();
+      try { input.value = ""; } catch(_){}
+      resetScannerUI();
+    });
+  }
+
+  input.addEventListener("change", async ()=>{
+    const file = input.files && input.files[0];
+    if(!file) return;
+
+    // Preview
+    const wrap = $("scannerPreviewWrap");
+    const img = $("scannerPreview");
+    if (wrap) wrap.classList.remove("hidden");
+    if (img) img.src = URL.createObjectURL(file);
+
+    setScannerPill("Analysiere…","yellow");
+
+    try{
+      const scan = await detectTireFromImage(file);
+      __lastScan = scan;
+
+      fillScanUI(scan);
+      const res = $("scannerResult");
+      if (res) res.classList.remove("hidden");
+
+      setScannerPill("Erkannt","green");
+    } catch(err){
+      console.error("Scanner Fehler:", err);
+      setScannerPill("Fehler","red");
+      alert("Scanner: Foto konnte nicht erkannt werden.");
+    }
+  });
+
+  const applyBtn = $("scannerApplyToStock");
+  if(applyBtn){
+    bindTap(applyBtn, (e)=>{
+      e.preventDefault();
+      if(!__lastScan) return;
+      applyScanToStock(__lastScan, true);
+    });
+  }
+
+  const editBtn = $("scannerEditBeforeApply");
+  if(editBtn){
+    bindTap(editBtn, (e)=>{
+      e.preventDefault();
+      if(!__lastScan) return;
+      // Modal öffnen, dann füllen (so kann man direkt ändern)
+      applyScanToStock(__lastScan, true);
+      // Fokus
+      try { $("s_qty").focus(); } catch(_){}
+    });
+  }
+}
+
+
 /* =========================================================
    INIT
    ========================================================= */
@@ -2067,6 +2249,9 @@ async function initApp() {
   if (typeof loadStockFromSupabase === "function" && supabaseClient) {
     await loadStockFromSupabase();
   }
+  // ✅ Lager-Scanner initialisieren (Mobile)
+  try { initStockScanner(); } catch(e) {}
+
   switchView("orders");
 }
 
