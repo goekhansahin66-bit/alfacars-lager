@@ -2699,14 +2699,3 @@ function renderOrderList(stocks){
     </div>
   `).join("");
 }
-
-
-// ===== TAB: BESTELLEN =====
-document.addEventListener("click", function(e){
-  const btn = e.target.closest(".tab-btn");
-  if(!btn) return;
-  const tab = btn.getAttribute("data-tab");
-  document.querySelectorAll(".tab-content").forEach(s=>s.style.display="none");
-  const sec = document.getElementById("tab-"+tab);
-  if(sec) sec.style.display = "block";
-});
