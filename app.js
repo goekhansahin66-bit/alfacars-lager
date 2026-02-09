@@ -2013,16 +2013,55 @@ function normalizeOcrText(t){
 }
 
 function detectTireSize(rawText){
-  const text = normalizeOcrText(rawText);
+  // Größe-Erkennung ist empfindlich – daher hier extra robuste Normalisierung nur für Zahlen/Patterns.
+  let text = normalizeOcrText(rawText);
+
+  // Hilfsfunktion: typische OCR-Verwechslungen in "zahligen" Tokens korrigieren
+  function fixDigitConfusions(s){
+    const map = { "O":"0","Q":"0","S":"5","I":"1","L":"1","B":"8","G":"6","Z":"2" };
+    return s.replace(/[0-9A-Z]{3,}/g, (tok)=>{
+      if (!/[0-9]/.test(tok)) return tok; // nur Tokens mit Ziffern anfassen
+      return tok.replace(/[OQSILBGZ]/g, ch => map[ch] || ch);
+    });
+  }
+
+  // Einheitliche Trenner
+  text = text.replace(/[‐‑–—]/g, "-");
+  text = fixDigitConfusions(text);
+  // Bindestrich zwischen Breite und Höhe oft statt Slash
+  text = text.replace(/(\d{3})\s*-\s*(\d{2})/g, "$1/$2");
+  // Mehrfachspaces
+  text = text.replace(/[^\S\r\n]+/g, " ");
+
+  function plausible(w, ar, rim){
+    w = parseInt(w, 10); ar = parseInt(ar, 10); rim = parseInt(rim, 10);
+    if (!(w>=125 && w<=355)) return false;
+    if (!(ar>=20 && ar<=90)) return false;
+    if (!(rim>=10 && rim<=26)) return false;
+    return true;
+  }
 
   // 1) Standard: 205/55 R16 oder 205/55R16
   let m = text.match(/(\d{3})\s*\/\s*(\d{2})\s*R\s*(\d{2})/);
-  if (!m) m = text.match(/(\d{3})\s*\/\s*(\d{2})\s*R?(\d{2})/); // falls OCR das Leerzeichen verschluckt
-  if (m) return `${m[1]}/${m[2]} R${m[3]}`;
+  if (!m) m = text.match(/(\d{3})\s*\/\s*(\d{2})\s*R?(\d{2})/);
+  if (m && plausible(m[1], m[2], m[3])) return `${m[1]}/${m[2]} R${m[3]}`;
 
-  // 2) Fallback: 205 55 R16 (manchmal ohne Slash)
+  // 2) Ohne Slash: 205 55 R16
   m = text.match(/(\d{3})\s+(\d{2})\s*R\s*(\d{2})/);
-  if (m) return `${m[1]}/${m[2]} R${m[3]}`;
+  if (m && plausible(m[1], m[2], m[3])) return `${m[1]}/${m[2]} R${m[3]}`;
+
+  // 3) Kompakt: 20555R16 oder 20555 16
+  m = text.match(/(\d{3})(\d{2})\s*R?\s*(\d{2})/);
+  if (m && plausible(m[1], m[2], m[3])) return `${m[1]}/${m[2]} R${m[3]}`;
+
+  // 4) Reihenfolge vertauscht: R16 ... 205 ... 55
+  m = text.match(/R\s*(\d{2})[^0-9]{0,10}(\d{3})[^0-9]{0,10}(\d{2})/);
+  if (m && plausible(m[2], m[3], m[1])) return `${m[2]}/${m[3]} R${m[1]}`;
+
+  // 5) Fallback: reine Ziffernfolge (z.B. 2055516 irgendwo im Text)
+  const digits = (text.match(/\d+/g) || []).join(" ");
+  const mAll = digits.match(/(\d{3})(\d{2})(\d{2})/);
+  if (mAll && plausible(mAll[1], mAll[2], mAll[3])) return `${mAll[1]}/${mAll[2]} R${mAll[3]}`;
 
   return "";
 }
