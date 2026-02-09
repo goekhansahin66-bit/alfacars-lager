@@ -1902,6 +1902,8 @@ function renderModelSuggestions(){
    - Erkennt: Reifengröße + Marke (Pflicht), Saison (Bonus)
    ========================================================= */
 
+function sleepMs(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
 const TIRE_SCAN = {
   // Saison-Schlüsselwörter (alles wird auf UPPERCASE normalisiert)
   winter: [
@@ -2157,14 +2159,33 @@ function openTireScanModal(){
     // Stream stoppen (spart Akku)
     stopStream();
 
-    // OCR
+    // OCR (Weg 2: sichtbar + kurze Analysephase)
+    const analyzeStarted = Date.now();
+    let rawText = "";
+    let ocrOk = false;
+
     try{
-      status.textContent = "Texterkennung läuft …";
-      const rawText = await ocrImage(dataUrl, (st, p)=>{
+      status.textContent = "Analysiere Foto …";
+      // kleinen Tick geben, damit UI-Text sicher sichtbar wird
+      await sleepMs(80);
+
+      rawText = await ocrImage(dataUrl, (st, p)=>{
         const pct = (typeof p === "number") ? Math.round(p*100) : null;
         status.textContent = pct !== null ? `Texterkennung: ${st} (${pct}%) …` : `Texterkennung: ${st} …`;
       });
 
+      ocrOk = true;
+    } catch(e){
+      console.error(e);
+      ocrOk = false;
+    }
+
+    // Mindestens ~1.5s Analyse anzeigen (auch wenn OCR sehr schnell fehlschlägt)
+    const elapsed = Date.now() - analyzeStarted;
+    const MIN_ANALYZE_MS = 1500;
+    if (elapsed < MIN_ANALYZE_MS) await sleepMs(MIN_ANALYZE_MS - elapsed);
+
+    if (ocrOk){
       // Erkennung
       const size = detectTireSize(rawText);
       const brand = detectBrand(rawText);
@@ -2193,10 +2214,10 @@ function openTireScanModal(){
       // Scan-Modal schließen
       close();
 
-    } catch(e){
-      console.error(e);
-      status.textContent = "";
-      alert("OCR hat nicht funktioniert. Das Lagerformular öffnet sich trotzdem – bitte Daten manuell eingeben.");
+    } else {
+      // OCR nicht möglich (z.B. CDN/Worker blockiert) → trotzdem Lagerformular öffnen
+      status.textContent = "Analyse nicht möglich – öffne Lagerformular …";
+      await sleepMs(250);
       openNewStock();
       const qtyEl = document.getElementById("s_qty");
       if (qtyEl) qtyEl.value = 1;
