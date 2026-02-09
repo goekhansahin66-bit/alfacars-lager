@@ -557,11 +557,14 @@ const DEFAULT_BRANDS = [
 // Optional: Modell-Vorschläge (lokal/offline)
 const TIRE_MODELS = {
   "Berlin Tires": {
-    "Sommer": ["Summer HP","Eco Drive"],
-    "Winter": ["Winter Grip"],
-    "Allwetter": ["All Season 2","All Weather Pro"]
-  },
-  "Syron": {
+  "Sommer": [
+    "Summer HP 1","Summer HP 2","Summer HP ECO",
+    "Summer UHP 1","Summer UHP 2","Royalmax 2","Marathon 1"
+  ],
+  "Winter": ["Alpine Grip","Alpine Grip C"],
+  "Allwetter": ["All Season 1","All Season 2","All Season Cargo","All Season VAN"]
+},
+"Syron": {
     "Sommer": ["Race 1 Plus","Premium Performance"],
     "Winter": ["EverSnow","Ice Guard"],
     "Allwetter": ["All Climate","4 Season"]
@@ -1812,6 +1815,8 @@ function renderStockSuggestions(){
 
 function openNewStock(){
   if (READ_ONLY) return roAlert();
+  // Ensure model input uses the shared datalist suggestions
+  try { const sm = $("s_model"); if (sm) sm.setAttribute("list","modelList"); } catch(e) {}
   editingStockId = null;
   $("stockModalTitle").textContent="Neuer Lagereintrag";
   $("s_delete").classList.add("hidden");
@@ -1830,6 +1835,8 @@ function openNewStock(){
 
 function openEditStock(id){
   if (READ_ONLY) return roAlert();
+  // Ensure model input uses the shared datalist suggestions
+  try { const sm = $("s_model"); if (sm) sm.setAttribute("list","modelList"); } catch(e) {}
   const s = stock.find(x=>x.id===id);
   if(!s) return;
 
@@ -1883,15 +1890,55 @@ function deleteStockItem(){
   renderStock();
 }
 
+/* =========================================================
+   MODEL SUGGESTIONS (MARKe + SAISON -> MODEL-DROPDOWN)
+   - Works for BOTH: Order modal (f_*) and Stock modal (s_*)
+   - Uses shared datalist: #modelList (already in index.html)
+   ========================================================= */
+
+function getModelsFor(brand, season){
+  brand = clean(brand);
+  season = clean(season);
+  if (!brand || !season) return [];
+  const byBrand = TIRE_MODELS[brand];
+  if (!byBrand) return [];
+  const list = byBrand[season];
+  return Array.isArray(list) ? list.filter(Boolean) : [];
+}
+
+function renderModelSuggestionsFor(brandInputId, seasonInputId, datalistId="modelList"){
+  const brandEl = $(brandInputId);
+  const seasonEl = $(seasonInputId);
+  const list = $(datalistId);
+
+  if (!brandEl || !seasonEl || !list) return;
+
+  const brand = clean(brandEl.value);
+  const season = clean(seasonEl.value);
+
+  const models = getModelsFor(brand, season);
+
+  list.innerHTML = "";
+  if (!models.length) return;
+
+  // Unique + stable order
+  const seen = new Set();
+  const uniq = [];
+  models.forEach(m=>{
+    const k = String(m).trim();
+    if(!k) return;
+    const kk = k.toLowerCase();
+    if(seen.has(kk)) return;
+    seen.add(kk);
+    uniq.push(k);
+  });
+
+  list.innerHTML = uniq.map(m => `<option value="${m}"></option>`).join("");
+}
+
+// Backwards-compat for old call sites
 function renderModelSuggestions(){
-  const brand = clean($("s_brand").value);
-  const season = clean($("s_season").value);
-
-  const list = $("modelList");
-  list.innerHTML="";
-
-  const models = (TIRE_MODELS[brand] && TIRE_MODELS[brand][season]) ? TIRE_MODELS[brand][season] : [];
-  list.innerHTML = models.map(m => `<option value="${m}"></option>`).join("");
+  renderModelSuggestionsFor("s_brand","s_season","modelList");
 }
 
 
@@ -2416,6 +2463,19 @@ if (READ_ONLY) overrideReadOnlyUI();
     el.value = normalizeTireSize(el.value);
   });
 })();
+
+
+(()=>{ 
+  const el = $("f_brand");
+  if (el) el.addEventListener("input", ()=>renderModelSuggestionsFor("f_brand","f_season","modelList"));
+  else console.warn("⚠️ Element fehlt: f_brand");
+})();
+(()=>{ 
+  const el = $("f_season");
+  if (el) el.addEventListener("change", ()=>renderModelSuggestionsFor("f_brand","f_season","modelList"));
+  else console.warn("⚠️ Element fehlt: f_season");
+})();
+
 
 (()=>{ const el=$("s_size"); if(!el){ console.warn("⚠️ Element fehlt: s_size"); return; }
   el.addEventListener("input",()=>{
