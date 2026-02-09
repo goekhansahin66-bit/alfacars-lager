@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Alfacars – Reifen / Kunden / Lager</title>
- <link rel="stylesheet" href="style.css?v=123" />
+  <link rel="stylesheet" href="style.css" />
   <!-- Supabase UMD (window.supabase) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
@@ -156,7 +156,7 @@
           <input id="f_plate" placeholder="z.B. B-AB 1234" />
         </div>
         <div class="field">
-          <label>E-Mail</label>
+          <label>E‑Mail</label>
           <input id="f_email" placeholder="optional" />
         </div>
 
@@ -281,7 +281,7 @@
         <div class="field"><label>Telefon</label><input id="c_phone" /></div>
 
         <div class="field"><label>Kennzeichen</label><input id="c_plate" /></div>
-        <div class="field"><label>E-Mail</label><input id="c_email" /></div>
+        <div class="field"><label>E‑Mail</label><input id="c_email" /></div>
 
         <div class="field"><label>Straße</label><input id="c_street" /></div>
         <div class="field"><label>PLZ</label><input id="c_zip" /></div>
@@ -328,16 +328,14 @@
           </select>
         </div>
 
-        <div class="field"><label>Modell</label><input id="s_model" list="modelList" placeholder="optional" /></div>
-        <datalist id="modelList"></datalist>
-
-        <div class="field"><label>DOT</label><input id="s_dot" placeholder="optional (z.B. 2423)" /></div>
+        <div class="field"><label>Modell</label><input id="s_model" placeholder="optional" /></div>
+        <div class="field"><label>DOT</label><input id="s_dot" placeholder="optional" /></div>
         <div class="field"><label>Menge</label><input id="s_qty" type="number" min="0" step="1" /></div>
       </div>
 
       <div class="modal-actions">
         <div class="left-actions">
-          <button class="btn danger hidden" id="s_delete">Löschen</button>
+          <button class="btn danger" id="s_delete">Löschen</button>
         </div>
         <div class="right-actions">
           <button class="btn" id="s_cancel">Abbrechen</button>
@@ -353,35 +351,22 @@
       <div class="modal-head">
         <div>
           <div class="modal-title">Tagesabschluss</div>
-          <div class="modal-sub">Bestellliste + Export</div>
+          <div class="modal-sub">Export / Übersicht</div>
         </div>
         <button class="ghost big" id="d_close">✕</button>
       </div>
 
       <div class="modal-foot">
-        <div class="section-title">Fehlende Lagerartikel</div>
-        <div class="note list" id="dayCloseList"></div>
-
-        <div class="form-grid" style="padding:14px 0 0 0;">
-          <div class="field">
-            <label>Lieferant</label>
-            <input id="d_supplier" placeholder="optional" />
-          </div>
-          <div class="field">
-            <label>Notiz</label>
-            <input id="d_note" placeholder="optional" />
-          </div>
-        </div>
-
-        <div class="hint">Export erstellt eine Excel-Datei mit Tabs (Bestellungen/Kunden/Lager) + Backup JSON.</div>
+        <div id="dayCloseList"></div>
       </div>
 
       <div class="modal-actions">
-        <div class="left-actions"></div>
+        <div class="left-actions">
+          <button class="btn soft" id="d_exportOrder">Export Auswahl</button>
+          <button class="btn soft" id="d_exportAll">Export Alles</button>
+        </div>
         <div class="right-actions">
           <button class="btn" id="d_cancel">Schließen</button>
-          <button class="btn soft" id="d_exportOrder">Bestellliste (CSV)</button>
-          <button class="btn primary" id="d_exportAll">Export (Excel + Backup)</button>
         </div>
       </div>
     </div>
