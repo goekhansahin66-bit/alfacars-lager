@@ -521,3 +521,14 @@ body{
     touch-action: pan-y;
   }
 }
+
+.order-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 6px;
+  border-bottom: 1px dashed #ddd;
+  font-size: 15px;
+}
+.order-row .need {
+  font-weight: 600;
+}
