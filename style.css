@@ -16,14 +16,15 @@
 
 *{box-sizing:border-box}
 html,body{height:100%}
-body{ -webkit-tap-highlight-color: transparent; }
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  background: radial-gradient(1200px 800px at 20% -10%, #e9efff, transparent 60%),
-              radial-gradient(1200px 800px at 100% 0%, #eaf7ff, transparent 55%),
-              var(--bg);
+  background:
+    radial-gradient(1200px 800px at 20% -10%, #e9efff, transparent 60%),
+    radial-gradient(1200px 800px at 100% 0%, #eaf7ff, transparent 55%),
+    var(--bg);
   color:var(--text);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .shell{
@@ -32,8 +33,12 @@ body{
   flex-direction:column;
 }
 
+/* ================= TOPBAR ================= */
+
 .topbar{
-  position:sticky; top:0; z-index:10;
+  position:sticky;
+  top:0;
+  z-index:10;
   display:flex;
   justify-content:space-between;
   align-items:center;
@@ -47,7 +52,6 @@ body{
 .brand-title{
   font-size:20px;
   font-weight:900;
-  letter-spacing:.2px;
 }
 .brand-sub{
   font-size:12px;
@@ -63,6 +67,8 @@ body{
   justify-content:flex-end;
 }
 
+/* ================= SEARCH ================= */
+
 .search{
   flex:1;
   display:flex;
@@ -71,7 +77,7 @@ body{
   background:var(--panel);
   border:1px solid var(--line);
   border-radius:14px;
-  padding:10px 10px;
+  padding:10px;
   box-shadow: var(--shadow-soft);
 }
 .search .icon{opacity:.55}
@@ -83,8 +89,13 @@ body{
   background:transparent;
   color:var(--text);
 }
+
+/* ================= BUTTONS ================= */
+
 .ghost{
-  border:0; background:transparent; cursor:pointer;
+  border:0;
+  background:transparent;
+  cursor:pointer;
   color:var(--muted);
   font-size:18px;
   line-height:1;
@@ -105,21 +116,37 @@ body{
   box-shadow: var(--shadow-soft);
 }
 .btn:hover{transform: translateY(-1px)}
-.btn:active{transform: translateY(0px)}
+.btn:active{transform: translateY(0)}
+
 .btn.primary{
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
   border-color: transparent;
   color:#fff;
 }
-.btn.soft{background:#fff;border-color:var(--line);box-shadow:none}
-.btn.warn{background:rgba(245,158,11,.16); border-color:rgba(245,158,11,.25); box-shadow:none}
-.btn.success{background:rgba(22,163,74,.16); border-color:rgba(22,163,74,.25); box-shadow:none}
-.btn.danger{background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.25); color:#991b1b; box-shadow:none}
+.btn.soft{box-shadow:none}
+.btn.warn{
+  background:rgba(245,158,11,.16);
+  border-color:rgba(245,158,11,.25);
+  box-shadow:none;
+}
+.btn.success{
+  background:rgba(22,163,74,.16);
+  border-color:rgba(22,163,74,.25);
+  box-shadow:none;
+}
+.btn.danger{
+  background:rgba(220,38,38,.14);
+  border-color:rgba(220,38,38,.35);
+  color:#991b1b;
+  box-shadow:none;
+}
+
+/* ================= TABS ================= */
 
 .tabs{
   display:flex;
   gap:8px;
-  padding:10px 18px 0 18px;
+  padding:10px 18px 0;
 }
 .tab{
   padding:10px 12px;
@@ -135,19 +162,19 @@ body{
   background:#fff;
   box-shadow: var(--shadow-soft);
 }
-.tab:disabled{
-  opacity:.45;
-  cursor:not-allowed;
-}
+.tab:disabled{opacity:.45}
+
+/* ================= BOARD ================= */
 
 .board{
   display:grid;
-  grid-template-columns:repeat(3, 1fr);
+  grid-template-columns:repeat(3,1fr);
   gap:14px;
-  padding:12px 18px 18px 18px;
+  padding:12px 18px 18px;
   flex:1;
   min-height:0;
 }
+.board.hidden{display:none!important}
 
 .column{
   background: rgba(255,255,255,.55);
@@ -158,11 +185,12 @@ body{
   flex-direction:column;
   min-height:0;
 }
+
 .col-head{
   display:flex;
   justify-content:space-between;
   align-items:center;
-  padding:12px 12px 10px 12px;
+  padding:12px;
   border-bottom:1px solid rgba(229,231,235,.9);
 }
 .col-title{
@@ -171,25 +199,26 @@ body{
   gap:10px;
   font-weight:900;
 }
-.dot{width:10px;height:10px;border-radius:999px}
-.dot-grey{background:#94a3b8}
-.dot-yellow{background:#f59e0b}
-.dot-green{background:#16a34a}
 .col-count{
   font-size:12px;
   padding:6px 10px;
   border-radius:999px;
   background: rgba(15,23,42,.06);
-  color: rgba(15,23,42,.75);
   font-weight:900;
 }
 
+.dot{width:10px;height:10px;border-radius:999px}
+.dot-grey{background:#94a3b8}
+.dot-yellow{background:#f59e0b}
+.dot-green{background:#16a34a}
+
 .col-body{
-  -webkit-overflow-scrolling: touch;
   padding:12px;
   overflow:auto;
   min-height:0;
 }
+
+/* ================= CARDS ================= */
 
 .card{
   background:var(--panel);
@@ -200,22 +229,20 @@ body{
   margin-bottom:12px;
   cursor:pointer;
 }
-.card:hover{transform: translateY(-1px)}
-.card-top{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  align-items:flex-start;
-}
+.card:hover{transform:translateY(-1px)}
+
 .card-title{
   font-weight:950;
   font-size:15px;
 }
 .card-sub{
-  color:var(--muted);
   font-size:12px;
+  color:var(--muted);
   margin-top:3px;
 }
+
+/* ================= PILLS ================= */
+
 .pill{
   display:inline-flex;
   align-items:center;
@@ -226,37 +253,19 @@ body{
   border-radius:999px;
   font-weight:900;
   font-size:12px;
-  white-space:nowrap;
 }
-.pill.small{padding:5px 9px; font-size:11px}
+
 .pill.grey{background:rgba(148,163,184,.14)}
 .pill.yellow{background:rgba(245,158,11,.16)}
 .pill.green{background:rgba(22,163,74,.16)}
+.pill.red{
+  background:#fee2e2;
+  border-color:#fecaca;
+  color:#7f1d1d;
+  font-weight:950;
+}
 
-.card-grid{
-  margin-top:10px;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-}
-.kv{
-  background: rgba(2,8,23,.03);
-  border:1px solid rgba(148,163,184,.18);
-  border-radius:12px;
-  padding:8px 10px;
-}
-.k{font-size:11px;color:var(--muted);font-weight:800}
-.v{font-size:13px;font-weight:900;margin-top:2px;word-break:break-word}
-
-.note{
-  margin-top:10px;
-  font-size:12px;
-  color: rgba(15,23,42,.82);
-  background: rgba(37,99,235,.06);
-  border:1px solid rgba(37,99,235,.12);
-  border-radius:12px;
-  padding:8px 10px;
-}
+/* ================= MODALS ================= */
 
 .modal{
   position:fixed;
@@ -270,27 +279,29 @@ body{
 }
 .modal.hidden{display:none}
 
-/* Generic helper */
-.hidden{display:none !important;}
-
 .modal-card{
-  width:min(920px, 96vw);
+  width:min(920px,96vw);
+  max-height: calc(100vh - 40px);
   background:var(--panel);
   border:1px solid rgba(229,231,235,.95);
   border-radius:18px;
   box-shadow: var(--shadow);
-  overflow:hidden;
+  overflow-y:auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+/* KEINE weiteren Scroll-Container im Modal! */
+
 .modal-head{
   display:flex;
-  align-items:flex-start;
   justify-content:space-between;
   gap:12px;
-  padding:14px 14px 10px 14px;
+  padding:14px;
   border-bottom:1px solid rgba(229,231,235,.95);
 }
+
 .modal-title{font-weight:950;font-size:16px}
-.modal-sub{color:var(--muted);font-size:12px;margin-top:3px}
+.modal-sub{font-size:12px;color:var(--muted);margin-top:3px}
 
 .form-grid{
   padding:14px;
@@ -298,6 +309,7 @@ body{
   grid-template-columns:1fr 1fr;
   gap:12px;
 }
+
 .field label{
   display:block;
   font-size:12px;
@@ -305,219 +317,60 @@ body{
   font-weight:900;
   margin-bottom:6px;
 }
-.field input, .field select, .field textarea{
+.field input,
+.field select,
+.field textarea{
   width:100%;
-  padding:10px 10px;
+  padding:10px;
   border-radius:14px;
   border:1px solid rgba(209,213,219,.9);
-  outline:none;
-  background:#fff;
   font-size:14px;
 }
 .field textarea{resize:none}
-.hint{margin-top:6px;font-size:11px;color:rgba(100,116,139,.95)}
-.span-2{grid-column:1 / -1}
+.span-2{grid-column:1/-1}
 
 .calc-row{
   display:flex;
   gap:10px;
-  padding:0 14px 12px 14px;
+  padding:0 14px 12px;
 }
 .calc{
   flex:1;
-  background: rgba(2,8,23,.03);
+  background:rgba(2,8,23,.03);
   border:1px solid rgba(148,163,184,.18);
   border-radius:16px;
   padding:10px 12px;
 }
-.calc-label{font-size:11px;color:var(--muted);font-weight:900}
-.calc-value{font-size:18px;font-weight:950;margin-top:2px}
+.calc-label{
+  font-size:11px;
+  color:var(--muted);
+  font-weight:900;
+}
+.calc-value{
+  font-size:18px;
+  font-weight:950;
+  margin-top:2px;
+}
 
 .modal-actions{
-  padding:12px 14px 14px 14px;
+  padding:12px 14px 14px;
   border-top:1px solid rgba(229,231,235,.95);
   display:flex;
-  align-items:center;
   justify-content:space-between;
   gap:12px;
 }
-.left-actions, .right-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-
-.modal-foot{
-  padding:0 14px 14px 14px;
-}
-.foot-note{font-size:11px;color:var(--muted);font-weight:800}
 
 .foot{
-  padding:10px 18px 16px 18px;
+  padding:10px 18px 16px;
   color:var(--muted);
   font-size:12px;
 }
 
-.muted{color:var(--muted)}
+/* ================= MOBILE ================= */
 
-/* =========================================================
-   NEU: Status-Farben für Karten (nur angehängt)
-   ========================================================= */
-.card.status-bestellt{
-  background: rgba(148,163,184,.14);
-  border-color: rgba(148,163,184,.35);
-}
-.card.status-anrufen{
-  background: rgba(245,158,11,.18);
-  border-color: rgba(245,158,11,.35);
-}
-.card.status-erledigt{
-  background: rgba(22,163,74,.18);
-  border-color: rgba(22,163,74,.35);
-}
-/* ==================================================
-   VIEW-SICHTBARKEIT – FINAL & ERZWUNGEN
-   ================================================== */
-
-/* Versteckte Seiten (Archiv / Kunden / später Lager)
-   dürfen NICHT im Grid bleiben */
-.board.hidden {
-  display: none !important;
-}
-
-/* ==================================================
-   LAGER – Zusätze
-   ================================================== */
-.pill.red{background:rgba(220,38,38,.14);border-color:rgba(220,38,38,.25);color:#991b1b}
-.stock-row{
-  display:flex;
-  gap:10px;
-  align-items:flex-start;
-  justify-content:space-between;
-}
-.stock-actions{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-}
-.qtybox{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.qty-input{
-  width:84px;
-  text-align:center;
-  padding:8px 10px;
-  border-radius:12px;
-  border:1px solid rgba(209,213,219,.9);
-  font-weight:900;
-}
-.section-title{
-  font-weight:950;
-  margin:8px 0 10px 0;
-}
-.note.list{
-  background: rgba(2,8,23,.03);
-  border:1px solid rgba(148,163,184,.18);
-}
-.small-muted{font-size:11px;color:var(--muted);font-weight:800}
-
-
-
-/* =========================
-   READ-ONLY MODUS (iPhone)
-   ========================= */
-.read-only #btnNew,
-.read-only #btnExportAll,
-.read-only #btnNewCustomer,
-.read-only #btnNewStock,
-.read-only #btnDayClose,
-.read-only #btnSave,
-.read-only #btnDelete,
-.read-only #cbtnSave,
-.read-only #cbtnDelete,
-.read-only #s_save,
-.read-only #s_delete,
-.read-only #d_exportOrder,
-.read-only #d_exportAll{
-  display:none !important;
-}
-
-/* Lager-Mengen-Steuerung ausblenden */
-.read-only .qtybox{
-  display:none !important;
-}
-
-/* Kleine Aktions-Buttons (z.B. Status-Pfeile / Bearbeiten / + Bestellung) ausblenden */
-.read-only button.pill.small{
-  display:none !important;
-}
-
-/* Rechtsklick-Hinweise am iPhone ausblenden */
-.read-only .small-muted{
-  display:none;
-}
-/* ✅ FIX: Mobile Höhe für Boards */
-@supports (-webkit-touch-callout: none) {
-  .board {
-    min-height: calc(100svh - 140px);
-    height: auto;
-  }
-}
-
-
-/* ================================
-   MOBILE FIXES (iPhone / Android)
-================================ */
-@media (max-width: 900px) {
-  .top-actions{
-    width:100%;
-    flex-wrap:wrap;
-    justify-content:flex-start;
-  }
-  .search{
-    width:100%;
-    flex:1 1 100%;
-  }
-  .board{
-    grid-template-columns: 1fr;
-  }
-  .card, .btn, .pill{
-    touch-action: manipulation;
-  }
-  .modal-card{
-    max-height: 92vh;
-    overflow-y: auto;
-  }
-}
-
-
-
-/* =========================================
-   FIX: MODAL SCROLL (PC + HANDY)
-   ========================================= */
-.modal{
-  align-items:flex-start;
-}
-
-.modal-card{
-  max-height:92vh;
-  display:flex;
-  flex-direction:column;
-}
-
-.modal-card .form-grid,
-.modal-card .calc-row,
-.modal-card .modal-actions,
-.modal-card .modal-foot{
-  overflow-y:auto;
-}
-
-/* =========================================
-   FIX: MOBILE TOUCH SAFETY
-   ========================================= */
-@media (max-width:768px){
-  .card{
-    cursor:default;
-    touch-action: pan-y;
-  }
+@media (max-width:900px){
+  .board{grid-template-columns:1fr}
+  .top-actions{flex-wrap:wrap;width:100%}
+  .search{width:100%}
+  .modal-card{max-height:92vh}
 }
