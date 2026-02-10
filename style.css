@@ -26,48 +26,28 @@ body{
   color:var(--text);
 }
 
-.shell{
-  min-height:100%;
-  display:flex;
-  flex-direction:column;
-}
+.shell{min-height:100%;display:flex;flex-direction:column}
 
 .topbar{
   position:sticky; top:0; z-index:10;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:14px;
-  padding:16px 18px;
+  display:flex; justify-content:space-between; align-items:center;
+  gap:14px; padding:16px 18px;
   background: rgba(255,255,255,.72);
   backdrop-filter: blur(10px);
   border-bottom:1px solid rgba(229,231,235,.9);
 }
 
-.brand-title{
-  font-size:20px;
-  font-weight:900;
-  letter-spacing:.2px;
-}
-.brand-sub{
-  font-size:12px;
-  color:var(--muted);
-  margin-top:2px;
-}
+.brand-title{font-size:20px;font-weight:900;letter-spacing:.2px}
+.brand-sub{font-size:12px;color:var(--muted);margin-top:2px}
 
 .top-actions{
-  display:flex;
-  gap:10px;
-  align-items:center;
+  display:flex; gap:10px; align-items:center;
   width:min(860px, 70vw);
   justify-content:flex-end;
 }
 
 .search{
-  flex:1;
-  display:flex;
-  align-items:center;
-  gap:8px;
+  flex:1; display:flex; align-items:center; gap:8px;
   background:var(--panel);
   border:1px solid var(--line);
   border-radius:14px;
@@ -76,20 +56,14 @@ body{
 }
 .search .icon{opacity:.55}
 .search input{
-  flex:1;
-  border:0;
-  outline:none;
-  font-size:14px;
-  background:transparent;
-  color:var(--text);
+  flex:1; border:0; outline:none;
+  font-size:14px; background:transparent; color:var(--text);
 }
+
 .ghost{
   border:0; background:transparent; cursor:pointer;
-  color:var(--muted);
-  font-size:18px;
-  line-height:1;
-  padding:6px 10px;
-  border-radius:10px;
+  color:var(--muted); font-size:18px; line-height:1;
+  padding:6px 10px; border-radius:10px;
 }
 .ghost:hover{background:rgba(2,8,23,.05)}
 .ghost.big{font-size:22px}
@@ -116,11 +90,7 @@ body{
 .btn.success{background:rgba(22,163,74,.16); border-color:rgba(22,163,74,.25); box-shadow:none}
 .btn.danger{background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.25); color:#991b1b; box-shadow:none}
 
-.tabs{
-  display:flex;
-  gap:8px;
-  padding:10px 18px 0 18px;
-}
+.tabs{display:flex;gap:8px;padding:10px 18px 0 18px;flex-wrap:wrap}
 .tab{
   padding:10px 12px;
   border-radius:999px;
@@ -130,15 +100,8 @@ body{
   font-weight:800;
   color:var(--muted);
 }
-.tab.active{
-  color:var(--text);
-  background:#fff;
-  box-shadow: var(--shadow-soft);
-}
-.tab:disabled{
-  opacity:.45;
-  cursor:not-allowed;
-}
+.tab.active{color:var(--text);background:#fff;box-shadow: var(--shadow-soft)}
+.tab:disabled{opacity:.45;cursor:not-allowed}
 
 .board{
   display:grid;
@@ -148,6 +111,7 @@ body{
   flex:1;
   min-height:0;
 }
+.board.hidden{display:none !important;}
 
 .column{
   background: rgba(255,255,255,.55);
@@ -165,16 +129,12 @@ body{
   padding:12px 12px 10px 12px;
   border-bottom:1px solid rgba(229,231,235,.9);
 }
-.col-title{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-weight:900;
-}
+.col-title{display:flex;align-items:center;gap:10px;font-weight:900}
 .dot{width:10px;height:10px;border-radius:999px}
 .dot-grey{background:#94a3b8}
 .dot-yellow{background:#f59e0b}
 .dot-green{background:#16a34a}
+
 .col-count{
   font-size:12px;
   padding:6px 10px;
@@ -184,12 +144,7 @@ body{
   font-weight:900;
 }
 
-.col-body{
-  -webkit-overflow-scrolling: touch;
-  padding:12px;
-  overflow:auto;
-  min-height:0;
-}
+.col-body{padding:12px;overflow:auto;min-height:0;-webkit-overflow-scrolling:touch}
 
 .card{
   background:var(--panel);
@@ -198,28 +153,13 @@ body{
   padding:12px;
   box-shadow: var(--shadow-soft);
   margin-bottom:12px;
-  cursor:pointer;
 }
-.card:hover{transform: translateY(-1px)}
-.card-top{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  align-items:flex-start;
-}
-.card-title{
-  font-weight:950;
-  font-size:15px;
-}
-.card-sub{
-  color:var(--muted);
-  font-size:12px;
-  margin-top:3px;
-}
+.card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.card-title{font-weight:950;font-size:15px}
+.card-sub{color:var(--muted);font-size:12px;margin-top:3px}
+
 .pill{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
+  display:inline-flex; align-items:center; gap:6px;
   padding:6px 10px;
   background:var(--chip);
   border:1px solid rgba(148,163,184,.25);
@@ -232,13 +172,9 @@ body{
 .pill.grey{background:rgba(148,163,184,.14)}
 .pill.yellow{background:rgba(245,158,11,.16)}
 .pill.green{background:rgba(22,163,74,.16)}
+.pill.red{background:rgba(220,38,38,.14);border-color:rgba(220,38,38,.25);color:#991b1b}
 
-.card-grid{
-  margin-top:10px;
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:8px;
-}
+.card-grid{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .kv{
   background: rgba(2,8,23,.03);
   border:1px solid rgba(148,163,184,.18);
@@ -257,6 +193,7 @@ body{
   border-radius:12px;
   padding:8px 10px;
 }
+.note.list{background: rgba(2,8,23,.03); border:1px solid rgba(148,163,184,.18);}
 
 .modal{
   position:fixed;
@@ -269,8 +206,6 @@ body{
   z-index:100;
 }
 .modal.hidden{display:none}
-
-/* Generic helper */
 .hidden{display:none !important;}
 
 .modal-card{
@@ -318,11 +253,7 @@ body{
 .hint{margin-top:6px;font-size:11px;color:rgba(100,116,139,.95)}
 .span-2{grid-column:1 / -1}
 
-.calc-row{
-  display:flex;
-  gap:10px;
-  padding:0 14px 12px 14px;
-}
+.calc-row{display:flex;gap:10px;padding:0 14px 12px 14px}
 .calc{
   flex:1;
   background: rgba(2,8,23,.03);
@@ -343,66 +274,11 @@ body{
 }
 .left-actions, .right-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 
-.modal-foot{
-  padding:0 14px 14px 14px;
-}
-.foot-note{font-size:11px;color:var(--muted);font-weight:800}
+.foot{padding:10px 18px 16px 18px;color:var(--muted);font-size:12px}
 
-.foot{
-  padding:10px 18px 16px 18px;
-  color:var(--muted);
-  font-size:12px;
-}
-
-.muted{color:var(--muted)}
-
-/* =========================================================
-   NEU: Status-Farben für Karten (nur angehängt)
-   ========================================================= */
-.card.status-bestellt{
-  background: rgba(148,163,184,.14);
-  border-color: rgba(148,163,184,.35);
-}
-.card.status-anrufen{
-  background: rgba(245,158,11,.18);
-  border-color: rgba(245,158,11,.35);
-}
-.card.status-erledigt{
-  background: rgba(22,163,74,.18);
-  border-color: rgba(22,163,74,.35);
-}
-/* ==================================================
-   VIEW-SICHTBARKEIT – FINAL & ERZWUNGEN
-   ================================================== */
-
-/* Versteckte Seiten (Archiv / Kunden / später Lager)
-   dürfen NICHT im Grid bleiben */
-.board.hidden {
-  display: none !important;
-}
-
-/* ==================================================
-   LAGER – Zusätze
-   ================================================== */
-.pill.red{background:rgba(220,38,38,.14);border-color:rgba(220,38,38,.25);color:#991b1b}
-.stock-row{
-  display:flex;
-  gap:10px;
-  align-items:flex-start;
-  justify-content:space-between;
-}
-.stock-actions{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-}
-.qtybox{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
+.stock-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.stock-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.qtybox{display:flex;align-items:center;gap:8px}
 .qty-input{
   width:84px;
   text-align:center;
@@ -411,124 +287,14 @@ body{
   border:1px solid rgba(209,213,219,.9);
   font-weight:900;
 }
-.section-title{
-  font-weight:950;
-  margin:8px 0 10px 0;
-}
-.note.list{
-  background: rgba(2,8,23,.03);
-  border:1px solid rgba(148,163,184,.18);
-}
+
 .small-muted{font-size:11px;color:var(--muted);font-weight:800}
 
-
-
-/* =========================
-   READ-ONLY MODUS (iPhone)
-   ========================= */
+/* Read-only (optional) */
 .read-only #btnNew,
-.read-only #btnExportAll,
 .read-only #btnNewCustomer,
 .read-only #btnNewStock,
-.read-only #btnDayClose,
-.read-only #btnSave,
-.read-only #btnDelete,
-.read-only #cbtnSave,
-.read-only #cbtnDelete,
-.read-only #s_save,
-.read-only #s_delete,
-.read-only #d_exportOrder,
-.read-only #d_exportAll{
-  display:none !important;
-}
-
-/* Lager-Mengen-Steuerung ausblenden */
-.read-only .qtybox{
-  display:none !important;
-}
-
-/* Kleine Aktions-Buttons (z.B. Status-Pfeile / Bearbeiten / + Bestellung) ausblenden */
-.read-only button.pill.small{
-  display:none !important;
-}
-
-/* Rechtsklick-Hinweise am iPhone ausblenden */
-.read-only .small-muted{
-  display:none;
-}
-/* ✅ FIX: Mobile Höhe für Boards */
-@supports (-webkit-touch-callout: none) {
-  .board {
-    min-height: calc(100svh - 140px);
-    height: auto;
-  }
-}
-
-
-/* ================================
-   MOBILE FIXES (iPhone / Android)
-================================ */
-@media (max-width: 900px) {
-  .top-actions{
-    width:100%;
-    flex-wrap:wrap;
-    justify-content:flex-start;
-  }
-  .search{
-    width:100%;
-    flex:1 1 100%;
-  }
-  .board{
-    grid-template-columns: 1fr;
-  }
-  .card, .btn, .pill{
-    touch-action: manipulation;
-  }
-  .modal-card{
-    max-height: 92vh;
-    overflow-y: auto;
-  }
-}
-
-
-
-/* =========================================
-   FIX: MODAL SCROLL (PC + HANDY)
-   ========================================= */
-.modal{
-  align-items:flex-start;
-}
-
-.modal-card{
-  max-height:92vh;
-  display:flex;
-  flex-direction:column;
-}
-
-.modal-card .form-grid,
-.modal-card .calc-row,
-.modal-card .modal-actions,
-.modal-card .modal-foot{
-  overflow-y:auto;
-}
-
-/* =========================================
-   FIX: MOBILE TOUCH SAFETY
-   ========================================= */
-@media (max-width:768px){
-  .card{
-    cursor:default;
-    touch-action: pan-y;
-  }
-}
-
-.order-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 6px;
-  border-bottom: 1px dashed #ddd;
-  font-size: 15px;
-}
-.order-row .need {
-  font-weight: 600;
+.read-only #btnExportAll{
+  opacity:.45;
+  pointer-events:none;
 }
