@@ -142,6 +142,16 @@ function bindTap(el, handler){
   el.addEventListener("click", (e)=>{ if (Date.now() - lastTouch < 450) return; handler(e); });
 }
 
+
+// Auto-format tire size on blur
+function bindAutoTireFormat(id){
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("blur", ()=>{
+    el.value = normalizeTireSize(el.value);
+  });
+}
+
 function newUuid(){
   try { return crypto.randomUUID(); } catch(_) {}
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c=>{
@@ -369,8 +379,7 @@ async function upsertOrderSupabase(order){
     size: order.size,
     brand: order.brand || "",
     season: order.season || "",
-    // model column removed (not in DB)
-
+    model: order.model || "",
     qty: Number(order.qty || 0),
     unit: Number(order.unit || 0),
     deposit: Number(order.deposit || 0),
@@ -1267,6 +1276,10 @@ async function bootstrap(){
 
     initSupabase();
     renderBrands();
+
+    bindAutoTireFormat("f_size");
+    bindAutoTireFormat("s_size");
+
 
     // Tabs
     document.querySelectorAll(".tab").forEach(t=>{
