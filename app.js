@@ -1,28 +1,17 @@
-/* =========================================================
-   ALFACARS – CLEAN VERSION (Supabase only)
-   - Kein localStorage
-   - Orders + Customers + Stock ausschließlich Supabase
-   - Bestellliste (Syron / Berlin Tires) aus Lager-Minderbestand
-   - Mitarbeiter-Tab: Grundgerüst (UI)
-   ========================================================= */
-
 "use strict";
 
 /* ================================
-   SUPABASE CONFIG (aus eurem Code)
+   SUPABASE CONFIG
 ================================= */
 const SUPABASE_URL = "https://vocyuvgkbswoevikbbxa.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZvY3l1dmdrYnN3b2V2aWtiYnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyOTU1NzMsImV4cCI6MjA4NTg3MTU3M30.S8ROC7E3xaX2H6pv40p8rL1zDMQX89bNavz-GRfXKQI";
 
-/* ================================
-   TABLE NAMES (wie in eurem Setup)
-================================= */
 const TBL_ORDERS = "orders";
 const TBL_CUSTOMERS = "customers";
 const TBL_STOCK = "stock";
 
 /* ================================
-   CONSTANTS (Marken/Modelle wie vorher)
+   CONSTANTS
 ================================= */
 const DEFAULT_BRANDS = [
   "Michelin","Continental","Goodyear","Pirelli","Bridgestone","Hankook","Nokian","Falken",
@@ -53,12 +42,8 @@ const STATUSES = ["Bestellt","Anrufen","Erledigt"];
 const ARCHIVE_STATUS = "Archiv";
 const TARGET_QTY = 4;
 
-// Bestellliste Marken
+// Bestellliste Marken (Anzeige)
 const ORDER_BRANDS = new Set(["SYRON","BERLIN TIRES"]);
-
-// Für Auto-Bestellungen (Bestellliste Button)
-const AUTO_CUSTOMER_MARKER = "LAGER-AUTO";
-const AUTO_ORDER_MARKER = "[AUTO-LAGERBESTELLUNG]";
 
 /* ================================
    STATE
@@ -85,10 +70,6 @@ function setFoot(msg){
   if (el) el.textContent = msg || "Bereit";
 }
 
-function nowIso(){
-  return new Date().toISOString();
-}
-
 function money(n){
   return (Number(n || 0)).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
@@ -98,19 +79,10 @@ function phoneClean(v){ return clean(v).replace(/\s+/g,""); }
 function emailClean(v){ return clean(v).toLowerCase(); }
 function plateClean(v){ return clean(v).toUpperCase().replace(/[\s-]+/g,""); }
 
-function newUuid(){
-  try { return crypto.randomUUID(); } catch(_) {}
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c=>{
-    const r = Math.random()*16|0, v = c==="x"?r:(r&0x3|0x8);
-    return v.toString(16);
-  });
-}
-
 function normalizeTireSize(input){
   if (!input) return "";
   let s = String(input).toUpperCase().replace(/[^0-9R/ ]/g,"");
   s = s.replace(/\s+/g," ").trim();
-  // akzeptiere 205/55 R16 / 205/55R16
   let m = s.match(/(\d{3})\s*\/\s*(\d{2})\s*R\s*(\d{2})/);
   if (m) return `${m[1]}/${m[2]} R${m[3]}`;
   m = s.match(/(\d{3})\s*\/\s*(\d{2})\s*R?(\d{2})/);
@@ -142,6 +114,22 @@ function roAlert(){
   alert("📱 Anzeige-Modus: Änderungen nur am Master-PC möglich.");
 }
 
+/* iOS-safe tap helper */
+function bindTap(el, handler){
+  if (!el) return;
+  let lastTouch = 0;
+  el.addEventListener("touchend", (e)=>{ lastTouch = Date.now(); handler(e); }, { passive:true });
+  el.addEventListener("click", (e)=>{ if (Date.now() - lastTouch < 450) return; handler(e); });
+}
+
+function newUuid(){
+  try { return crypto.randomUUID(); } catch(_) {}
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c=>{
+    const r = Math.random()*16|0, v = c==="x"?r:(r&0x3|0x8);
+    return v.toString(16);
+  });
+}
+
 /* ================================
    INIT
 ================================= */
@@ -151,6 +139,7 @@ function initSupabase(){
     return;
   }
   supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log("✅ Supabase verbunden");
 }
 
 function renderBrands(){
@@ -191,15 +180,8 @@ function renderModelSuggestions(brandId, seasonId){
   list.innerHTML = uniq.map(m => `<option value="${m}"></option>`).join("");
 }
 
-function bindTap(el, handler){
-  if (!el) return;
-  let lastTouch = 0;
-  el.addEventListener("touchend", (e)=>{ lastTouch = Date.now(); handler(e); }, { passive:true });
-  el.addEventListener("click", (e)=>{ if (Date.now() - lastTouch < 450) return; handler(e); });
-}
-
 /* ================================
-   SUPABASE LOADERS
+   SUPABASE LOAD
 ================================= */
 async function loadCustomers(){
   const { data, error } = await supabaseClient
@@ -224,7 +206,6 @@ async function loadCustomers(){
 }
 
 async function loadOrders(){
-  // join optional: wenn Relation vorhanden, okay; wenn nicht, fallback.
   const joined = await supabaseClient
     .from(TBL_ORDERS)
     .select("*, customers (id,name,phone,license_plate,email,street,zip,city,source)")
@@ -258,10 +239,10 @@ function normalizeOrders(rows){
       customerPhone: c.phone || r.customerphone || r.customer_phone || "",
       customerEmail: c.email || r.customeremail || r.customer_email || "",
       licensePlate: c.license_plate || r.license_plate || r.licensePlate || "",
-      street: c.street || r.street || "",
-      zip: c.zip || r.zip || "",
-      city: c.city || r.city || "",
-      source: c.source || r.source || "",
+      street: c.street || "",
+      zip: c.zip || "",
+      city: c.city || "",
+      source: c.source || "",
       size: r.size || "",
       brand: r.brand || "",
       season: r.season || "",
@@ -297,34 +278,12 @@ async function loadStock(){
 }
 
 /* ================================
-   SUPABASE SAVES (CRUD)
+   CUSTOMERS CRUD (INSERT vs UPDATE)
 ================================= */
-async function findExistingCustomer({ phone, email, plate }){
-  const p = phoneClean(phone);
-  const e = emailClean(email);
-  const k = plateClean(plate);
-
-  const orParts = [];
-  if (p) orParts.push(`phone.eq.${p}`);
-  if (e) orParts.push(`email.eq.${e}`);
-  if (k) orParts.push(`license_plate.eq.${k}`);
-
-  if (!orParts.length) return null;
-
-  const { data, error } = await supabaseClient
-    .from(TBL_CUSTOMERS)
-    .select("id,name,phone,license_plate,email,street,zip,city,source")
-    .or(orParts.join(","))
-    .limit(1);
-
-  if (error) return null;
-  return (data && data[0]) ? data[0] : null;
-}
-
-function validateCustomerMinimum({ phone, email, plate }){
-  const p = phoneClean(phone);
-  const e = emailClean(email);
-  const k = plateClean(plate);
+function validateCustomerMinimum(data){
+  const p = phoneClean(data.phone);
+  const e = emailClean(data.email);
+  const k = plateClean(data.plate);
   if (!p && !e && !k){
     alert("Bitte Telefon ODER E-Mail ODER Kennzeichen eingeben (mindestens 1 Pflicht).");
     return false;
@@ -332,62 +291,43 @@ function validateCustomerMinimum({ phone, email, plate }){
   return true;
 }
 
-async function upsertCustomerSupabase(payload){
-  // payload: {id?, name, phone, email, license_plate, street, zip, city, source}
-  if (!validateCustomerMinimum(payload)) return null;
+async function saveCustomerSupabase(data){
+  if (!validateCustomerMinimum(data)) return null;
 
-  const data = {
-    id: payload.id || undefined,
-    name: clean(payload.name) || null,
-    phone: phoneClean(payload.phone) || null,
-    email: emailClean(payload.email) || null,
-    license_plate: plateClean(payload.license_plate || payload.plate) || null,
-    street: clean(payload.street) || null,
-    zip: clean(payload.zip) || null,
-    city: clean(payload.city) || null,
-    source: clean(payload.source) || null
+  const payload = {
+    name: clean(data.name) || null,
+    phone: phoneClean(data.phone) || null,
+    email: emailClean(data.email) || null,
+    license_plate: plateClean(data.plate) || null,
+    street: clean(data.street) || null,
+    zip: clean(data.zip) || null,
+    city: clean(data.city) || null,
+    source: clean(data.source) || null
   };
 
-  // 1) Wenn keine ID: versuche Duplikat zu finden
-  let finalId = data.id;
-  if (!finalId){
-    const found = await findExistingCustomer({ phone:data.phone, email:data.email, plate:data.license_plate });
-    if (found?.id) finalId = found.id;
+  // UPDATE
+  if (data.id){
+    const { data: updated, error } = await supabaseClient
+      .from(TBL_CUSTOMERS)
+      .update(payload)
+      .eq("id", data.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return updated;
   }
 
-  // 2) Insert/Update
-  const row = { ...data, id: finalId || newUuid() };
-
-  const { data: saved, error } = await supabaseClient
+  // INSERT
+  const { data: inserted, error } = await supabaseClient
     .from(TBL_CUSTOMERS)
-    .upsert(row, { onConflict: "id" })
+    .insert(payload)
     .select()
     .single();
-
   if (error) throw error;
-
-  // In-memory upsert
-  const normalized = {
-    id: saved.id,
-    name: saved.name || "",
-    phone: saved.phone || "",
-    email: saved.email || "",
-    license_plate: saved.license_plate || "",
-    street: saved.street || "",
-    zip: saved.zip || "",
-    city: saved.city || "",
-    source: saved.source || "",
-    created_at: saved.created_at || null
-  };
-  const idx = customers.findIndex(c => c.id === normalized.id);
-  if (idx >= 0) customers[idx] = normalized;
-  else customers.unshift(normalized);
-
-  return normalized;
+  return inserted;
 }
 
 async function deleteCustomerSupabase(id){
-  // Schutz: Kunde mit Orders nicht löschen
   const used = orders.some(o => o.customerId === id);
   if (used){
     alert("Dieser Kunde hat Bestellungen und kann nicht gelöscht werden.");
@@ -398,8 +338,10 @@ async function deleteCustomerSupabase(id){
   customers = customers.filter(c => c.id !== id);
 }
 
+/* ================================
+   ORDERS CRUD
+================================= */
 async function upsertOrderSupabase(order){
-  // order must include: id?, customerId, status, size, brand, season, qty, unit, deposit, note, orderSource, model, rims
   const row = {
     id: order.id || newUuid(),
     status: order.status || "Bestellt",
@@ -416,17 +358,13 @@ async function upsertOrderSupabase(order){
     orderSource: order.orderSource || ""
   };
 
-  const { data, error } = await supabaseClient
+  const { error } = await supabaseClient
     .from(TBL_ORDERS)
-    .upsert(row, { onConflict: "id" })
-    .select()
-    .single();
+    .upsert(row, { onConflict: "id" });
 
   if (error) throw error;
 
-  // Refresh single order from DB row (simple normalize)
   await loadOrders();
-  return data;
 }
 
 async function deleteOrderSupabase(id){
@@ -435,6 +373,9 @@ async function deleteOrderSupabase(id){
   orders = orders.filter(o => o.id !== id);
 }
 
+/* ================================
+   STOCK CRUD
+================================= */
 async function upsertStockSupabase(item){
   const row = {
     id: item.id || newUuid(),
@@ -450,16 +391,12 @@ async function upsertStockSupabase(item){
   if (!row.brand) return alert("Bitte Marke eingeben");
   if (!row.season) return alert("Bitte Saison wählen");
 
-  const { data, error } = await supabaseClient
+  const { error } = await supabaseClient
     .from(TBL_STOCK)
-    .upsert(row, { onConflict: "id" })
-    .select()
-    .single();
+    .upsert(row, { onConflict: "id" });
 
   if (error) throw error;
-
   await loadStock();
-  return data;
 }
 
 async function deleteStockSupabase(id){
@@ -481,7 +418,7 @@ async function updateStockQtySupabase(id, newQty){
 }
 
 /* ================================
-   VIEWS
+   VIEW SWITCH
 ================================= */
 function switchView(view){
   currentView = view;
@@ -516,7 +453,7 @@ function renderCurrent(){
 }
 
 /* ================================
-   RENDER: ORDERS
+   RENDER: ORDERS / ARCHIVE
 ================================= */
 function orderMatchesQuery(o, q){
   if (!q) return true;
@@ -566,7 +503,7 @@ function buildOrderCard(o){
 }
 
 function renderOrders(){
-  const q = clean($("searchInput")?.value).toLowerCase();
+  const q = clean($("searchInput")?.value).toLowerCase().trim();
 
   STATUSES.forEach(s=>{
     const col = $("col-"+s);
@@ -582,13 +519,14 @@ function renderOrders(){
     const col = $("col-"+o.status);
     if (!col) return;
     col.appendChild(buildOrderCard(o));
+
     const count = $("count-"+o.status);
     if (count) count.textContent = String(Number(count.textContent||"0") + 1);
   });
 }
 
 function renderArchive(){
-  const q = clean($("searchInput")?.value).toLowerCase();
+  const q = clean($("searchInput")?.value).toLowerCase().trim();
   const col = $("col-Archiv");
   const count = $("count-Archiv");
   if (col) col.innerHTML = "";
@@ -703,9 +641,9 @@ async function saveOrder(){
     const size = normalizeTireSize($("f_size").value);
     if (!size) return alert("Bitte Reifengröße eingeben");
 
-    // Kunde in Supabase upserten (immer!)
-    const cust = await upsertCustomerSupabase({
-      id: null, // bewusst: wir verwenden Duplikat-Suche (phone/email/plate)
+    // Kunde speichern (INSERT oder UPDATE)
+    const cust = await saveCustomerSupabase({
+      id: null, // bewusst: bei Bestellung immer "neu/finden" über Daten -> Insert ist ok
       name: $("f_name").value,
       phone: $("f_phone").value,
       email: $("f_email").value,
@@ -715,7 +653,7 @@ async function saveOrder(){
       city: $("f_city").value,
       source: $("f_source").value
     });
-    if (!cust) return;
+    if (!cust?.id) return;
 
     const order = {
       id: editingOrderId || null,
@@ -776,7 +714,8 @@ function openStatusPicker(orderId){
   (async ()=>{
     try{
       setFoot("Aktualisiere…");
-      await supabaseClient.from(TBL_ORDERS).update({ status: next }).eq("id", orderId);
+      const { error } = await supabaseClient.from(TBL_ORDERS).update({ status: next }).eq("id", orderId);
+      if (error) throw error;
       await loadOrders();
       renderCurrent();
       setFoot("Status aktualisiert ✅");
@@ -789,7 +728,7 @@ function openStatusPicker(orderId){
 }
 
 /* ================================
-   CUSTOMERS
+   CUSTOMERS RENDER
 ================================= */
 function customerMatchesQuery(c, q){
   if (!q) return true;
@@ -844,16 +783,16 @@ function renderReachability(){
   const box = $("reachBox");
   if (!box) return;
 
-  if (!orders.length){
-    box.innerHTML = "Noch keine Bestellungen vorhanden.";
+  const active = orders.filter(o => o.status !== ARCHIVE_STATUS);
+  if (!active.length){
+    box.innerHTML = "Noch keine aktiven Bestellungen.";
     return;
   }
 
   const byCity = {};
   const bySource = {};
 
-  orders.forEach(o=>{
-    if (o.status === ARCHIVE_STATUS) return;
+  active.forEach(o=>{
     const city = clean(o.city) || "Unbekannt";
     const src = clean(o.orderSource || o.source) || "Unbekannt";
     byCity[city] = (byCity[city]||0) + 1;
@@ -881,7 +820,7 @@ function renderReachability(){
 }
 
 function renderCustomers(){
-  const q = clean($("customerSearchInput")?.value).toLowerCase();
+  const q = clean($("customerSearchInput")?.value).toLowerCase().trim();
   const list = $("customerList");
   if (!list) return;
   list.innerHTML = "";
@@ -893,6 +832,9 @@ function renderCustomers(){
   renderReachability();
 }
 
+/* ================================
+   CUSTOMER MODAL
+================================= */
 function openCustomerModal(id){
   if (READ_ONLY) return roAlert();
 
@@ -924,8 +866,8 @@ async function saveCustomer(){
   try{
     setFoot("Speichere Kunde…");
 
-    await upsertCustomerSupabase({
-      id: editingCustomerId || undefined,
+    const saved = await saveCustomerSupabase({
+      id: editingCustomerId || null,
       name: $("c_name").value,
       phone: $("c_phone").value,
       email: $("c_email").value,
@@ -936,7 +878,10 @@ async function saveCustomer(){
       source: $("c_source").value
     });
 
+    if (!saved?.id) return;
+
     closeCustomerModal();
+    await loadCustomers();
     renderCustomers();
     setFoot("Kunde gespeichert ✅");
   } catch(e){
@@ -965,7 +910,7 @@ async function deleteCustomer(){
 }
 
 /* ================================
-   STOCK
+   STOCK RENDER
 ================================= */
 function stockMatchesQuery(s, q){
   if (!q) return true;
@@ -1052,13 +997,41 @@ function buildStockCard(s){
   return card;
 }
 
+function computeBestellItems(){
+  const items = stock
+    .map(s=>{
+      const brandKey = normalizeText(s.brand);
+      if (!ORDER_BRANDS.has(brandKey)) return null;
+      const missing = stockNeed(s.qty);
+      if (!missing) return null;
+
+      return {
+        stockId: s.id,
+        size: s.size,
+        brand: s.brand,
+        season: s.season,
+        model: s.model,
+        qty: Number(s.qty||0),
+        missing
+      };
+    })
+    .filter(Boolean);
+
+  items.sort((a,b)=>{
+    const aa = `${a.brand}|${a.size}|${a.season}`.toLowerCase();
+    const bb = `${b.brand}|${b.size}|${b.season}`.toLowerCase();
+    return aa.localeCompare(bb, "de");
+  });
+
+  return items;
+}
+
 function renderStock(){
-  const q = clean($("stockSearchInput")?.value).toLowerCase();
+  const q = clean($("stockSearchInput")?.value).toLowerCase().trim();
   const list = $("stockList");
   if (!list) return;
   list.innerHTML = "";
 
-  // fehlende Summe
   let missingCount = 0;
 
   stock
@@ -1070,7 +1043,7 @@ function renderStock(){
 
   $("stockNeedCount").textContent = String(missingCount);
 
-  // Need box (Syron / Berlin Tires)
+  // Hinweisbox für Syron/Berlin Tires
   const needItems = computeBestellItems();
   const needBox = $("stockNeedBox");
   if (needBox){
@@ -1081,13 +1054,16 @@ function renderStock(){
       needBox.classList.remove("hidden");
       needBox.innerHTML = `
         <div style="font-weight:900; margin-bottom:6px;">📦 Bestellen nötig (Syron / Berlin Tires)</div>
-        ${needItems.slice(0,8).map(x => `• <b>${x.brand}</b> ${x.size} ${x.season} – fehlt <b>${x.missing}</b>`).join("<br>")}
-        ${needItems.length > 8 ? `<div style="margin-top:6px;" class="small-muted">+ ${needItems.length-8} weitere …</div>` : ""}
+        ${needItems.slice(0,10).map(x => `• <b>${x.brand}</b> ${x.size} ${x.season} – fehlt <b>${x.missing}</b>`).join("<br>")}
+        ${needItems.length > 10 ? `<div style="margin-top:6px;" class="small-muted">+ ${needItems.length-10} weitere …</div>` : ""}
       `;
     }
   }
 }
 
+/* ================================
+   STOCK MODAL
+================================= */
 function openStockModal(id){
   if (READ_ONLY) return roAlert();
 
@@ -1159,79 +1135,26 @@ async function deleteStock(){
 }
 
 /* ================================
-   BESTELLEN (aus Lager-Minderbestand)
-   - Button erzeugt eine Auto-Bestellung in orders (Supabase)
-   - damit es ohne neue DB-Tabellen sauber funktioniert.
+   BESTELLEN TAB (NUR ANZEIGE)
+   - Kein Button
+   - Zeigt klar: Bestand / Soll / Fehlt
 ================================= */
-function computeBestellItems(){
-  const items = stock
-    .map(s=>{
-      const brandKey = normalizeText(s.brand);
-      if (!ORDER_BRANDS.has(brandKey)) return null;
-      const missing = stockNeed(s.qty);
-      if (!missing) return null;
-
-      return {
-        stockId: s.id,
-        size: s.size,
-        brand: s.brand,
-        season: s.season,
-        model: s.model,
-        missing
-      };
-    })
-    .filter(Boolean);
-
-  // sort: brand then size
-  items.sort((a,b)=>{
-    const aa = `${a.brand}|${a.size}|${a.season}`.toLowerCase();
-    const bb = `${b.brand}|${b.size}|${b.season}`.toLowerCase();
-    return aa.localeCompare(bb, "de");
-  });
-
-  return items;
-}
-
-function autoOrderAlreadyExists(item){
-  // Eintrag gilt als "bestellt", wenn es eine offene Order mit Marker gibt, gleiche Größe/Marke/Saison.
-  return orders.some(o=>{
-    if (o.status === ARCHIVE_STATUS || o.status === "Erledigt") return false;
-    if (!String(o.note||"").includes(AUTO_ORDER_MARKER)) return false;
-    return (
-      normalizeText(o.brand) === normalizeText(item.brand) &&
-      normalizeText(o.size) === normalizeText(item.size) &&
-      normalizeText(o.season) === normalizeText(item.season)
-    );
-  });
-}
-
-async function ensureAutoCustomer(){
-  // wir legen einen "System-Kunden" an, damit Orders FK-konform bleiben
-  const found = await findExistingCustomer({ phone: AUTO_CUSTOMER_MARKER, email:"", plate:"" });
-  if (found?.id) return found.id;
-
-  const saved = await upsertCustomerSupabase({
-    id: null,
-    name: "Lager (Auto)",
-    phone: AUTO_CUSTOMER_MARKER,
-    email: "",
-    plate: "",
-    street: "",
-    zip: "",
-    city: "",
-    source: "System"
-  });
-  return saved?.id;
-}
-
 function renderBestellen(){
   const list = $("bestellenList");
   const count = $("bestellenCount");
+  const summary = $("bestellenSummary");
   if (!list || !count) return;
 
   const items = computeBestellItems();
   count.textContent = String(items.length);
   list.innerHTML = "";
+
+  const totalMissing = items.reduce((a,x)=>a + Number(x.missing||0), 0);
+  if (summary){
+    summary.textContent = items.length
+      ? `Positionen: ${items.length} · Gesamt fehlend: ${totalMissing}`
+      : "";
+  }
 
   if (!items.length){
     list.innerHTML = `<div class="note list">✅ Kein Minderbestand bei Syron/Berlin Tires. (Soll ${TARGET_QTY})</div>`;
@@ -1239,69 +1162,34 @@ function renderBestellen(){
   }
 
   items.forEach(item=>{
-    const already = autoOrderAlreadyExists(item);
-
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
-      <div class="stock-row">
-        <div style="flex:1">
+      <div class="card-top">
+        <div>
           <div class="card-title">${clean(item.brand)} · ${clean(item.size)} · ${clean(item.season)}</div>
-          <div class="card-sub">${item.model ? clean(item.model) + " · " : ""}Fehlt: ${item.missing} (Soll ${TARGET_QTY})</div>
+          <div class="card-sub">${item.model ? clean(item.model) + " · " : ""}Bestand ${item.qty} · Soll ${TARGET_QTY}</div>
         </div>
-        <div class="stock-actions">
-          <button class="btn ${already ? "success" : "primary"}" data-act="orderBtn">
-            ${already ? "Bestellt" : "Bestellen"}
-          </button>
-        </div>
+        <div class="pill red">Fehlt: <b>${item.missing}</b></div>
       </div>
-      <div class="hint">Erzeugt eine Auto-Bestellung (Supabase) – damit ist es sauber nachvollziehbar.</div>
+
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <span class="pill grey">Marke: <b>${clean(item.brand)}</b></span>
+        <span class="pill grey">Größe: <b>${clean(item.size)}</b></span>
+        <span class="pill grey">Saison: <b>${clean(item.season)}</b></span>
+        ${item.model ? `<span class="pill grey">Modell: <b>${clean(item.model)}</b></span>` : ""}
+      </div>
+
+      <div class="note list" style="margin-top:10px;">
+        ✅ Du siehst hier direkt, wie viele du bestellen musst: <b>${item.missing}</b>
+      </div>
     `;
-
-    const btn = card.querySelector('[data-act="orderBtn"]');
-    btn.onclick = async ()=>{
-      if (READ_ONLY) return roAlert();
-      if (already) return;
-
-      try{
-        setFoot("Erstelle Bestellung…");
-        const customerId = await ensureAutoCustomer();
-
-        await upsertOrderSupabase({
-          id: null,
-          customerId,
-          status: "Bestellt",
-          size: item.size,
-          brand: item.brand,
-          season: item.season,
-          model: item.model || "",
-          qty: item.missing,
-          unit: 0,
-          deposit: 0,
-          rims: "",
-          orderSource: item.brand, // damit du „Syron“ oder „Berlin Tires“ direkt siehst
-          note: `${AUTO_ORDER_MARKER} Lagerauffüllung · ${item.brand} · ${item.size} · ${item.season}`
-        });
-
-        await loadOrders();
-        renderBestellen();
-        renderOrders();
-        setFoot("Bestellung erstellt ✅");
-      } catch(e){
-        console.error(e);
-        alert("Fehler beim Bestellen: " + (e?.message || e));
-        setFoot("Fehler");
-      }
-    };
-
     list.appendChild(card);
   });
 }
 
 /* ================================
-   EXPORT (einfach + zuverlässig)
-   - CSV Export für Orders + Customers + Stock
-   - (kann später wieder auf Excel-XML erweitert werden)
+   EXPORT (CSV)
 ================================= */
 function csvEscape(v){
   const s = String(v ?? "");
@@ -1350,7 +1238,7 @@ function exportAll(){
 }
 
 /* ================================
-   WIRE UP
+   BOOTSTRAP / EVENTS
 ================================= */
 async function bootstrap(){
   try{
@@ -1359,7 +1247,7 @@ async function bootstrap(){
     initSupabase();
     renderBrands();
 
-    // Events
+    // Tabs
     document.querySelectorAll(".tab").forEach(t=>{
       t.onclick = ()=> switchView(t.dataset.tab);
     });
@@ -1376,13 +1264,12 @@ async function bootstrap(){
     $("customerSearchInput").addEventListener("input", ()=> renderCustomers());
     $("stockSearchInput").addEventListener("input", ()=> renderStock());
 
-    // Order modal buttons
+    // Order modal
     bindTap($("btnClose"), closeOrderModal);
     bindTap($("btnCancel"), closeOrderModal);
     bindTap($("btnSave"), saveOrder);
     bindTap($("btnDelete"), deleteOrder);
 
-    // Order recalc + models
     ["f_qty","f_unit","f_deposit"].forEach(id=>{
       $(id).addEventListener("input", recalcOrder);
     });
@@ -1406,7 +1293,7 @@ async function bootstrap(){
     $("s_brand").addEventListener("input", ()=> renderModelSuggestions("s_brand","s_season"));
     $("s_season").addEventListener("change", ()=> renderModelSuggestions("s_brand","s_season"));
 
-    // Initial load (Supabase)
+    // Initial load
     setFoot("Lade Daten…");
     await loadCustomers();
     await loadOrders();
