@@ -3,9 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Alfacars – Reifen / Kunden / Lager</title>
+  <title>Alfacars – Bestellungen · Kunden · Lager</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- Supabase UMD (window.supabase) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
@@ -24,7 +23,6 @@
         </div>
 
         <button class="btn primary" id="btnNew">+ Bestellung</button>
-        <button class="btn soft" id="btnDayClose">Tagesabschluss</button>
         <button class="btn soft" id="btnExportAll">Export</button>
       </div>
     </div>
@@ -34,7 +32,8 @@
       <button class="tab" data-tab="archive">Archiv</button>
       <button class="tab" data-tab="customers">Kunden</button>
       <button class="tab" data-tab="stock">Lager</button>
-    <button class="tab" data-tab="bestellen">📦 Bestellen</button>
+      <button class="tab" data-tab="bestellen">📦 Bestellen</button>
+      <button class="tab" data-tab="staff">👥 Mitarbeiter</button>
     </div>
 
     <!-- ===== ORDERS BOARD ===== -->
@@ -80,7 +79,7 @@
       <div class="column" style="grid-column:1/-1;">
         <div class="col-head">
           <div class="col-title">Kunden</div>
-          <div class="col-count" id="reachBox"> </div>
+          <div class="col-count" id="reachBox"></div>
         </div>
 
         <div class="col-body">
@@ -88,7 +87,9 @@
             <span class="icon">🔎</span>
             <input id="customerSearchInput" placeholder="Kunden suchen (Name, Telefon, Kennzeichen …)" />
           </div>
+
           <div id="customerList"></div>
+
           <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn primary" id="btnNewCustomer">+ Kunde</button>
           </div>
@@ -124,7 +125,6 @@
       </div>
     </div>
 
-
     <!-- ===== BESTELLEN BOARD ===== -->
     <div class="board hidden" id="bestellenBoard">
       <div class="column" style="grid-column:1/-1;">
@@ -141,11 +141,35 @@
       </div>
     </div>
 
+    <!-- ===== STAFF BOARD ===== -->
+    <div class="board hidden" id="staffBoard">
+      <div class="column" style="grid-column:1/-1;">
+        <div class="col-head">
+          <div class="col-title">👥 Mitarbeiter (Grundgerüst)</div>
+          <div class="col-count">coming soon</div>
+        </div>
+        <div class="col-body">
+          <div class="note list">
+            Hier kommt später euer Mitarbeiter-Portal rein: Krankheitstage, Fehltage, Überstunden, Vorschüsse usw.
+            <br><br>
+            Für jetzt ist das nur der Bereich (UI + Navigation), damit wir sauber weiterbauen können.
+          </div>
+          <div class="hint" style="margin-top:10px;">
+            Nächster Schritt: Supabase-Tabellen für Mitarbeiter + Zeiten + Vorschüsse definieren.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== FOOTER ===== -->
     <div class="foot">
-      <span class="muted">Bereit</span>
+      <span class="muted" id="footStatus">Bereit</span>
     </div>
   </div>
+
+  <!-- ===== Shared datalists ===== -->
+  <datalist id="brandList"></datalist>
+  <datalist id="modelList"></datalist>
 
   <!-- ================= ORDER MODAL ================= -->
   <div class="modal hidden" id="modal">
@@ -174,7 +198,7 @@
           <input id="f_plate" placeholder="z.B. B-AB 1234" />
         </div>
         <div class="field">
-          <label>E‑Mail</label>
+          <label>E-Mail</label>
           <input id="f_email" placeholder="optional" />
         </div>
 
@@ -203,7 +227,6 @@
         <div class="field">
           <label>Marke</label>
           <input id="f_brand" list="brandList" placeholder="z.B. Michelin" />
-          <datalist id="brandList"></datalist>
         </div>
 
         <div class="field">
@@ -218,7 +241,6 @@
         <div class="field">
           <label>Modell</label>
           <input id="f_model" list="modelList" placeholder="optional" />
-          <datalist id="modelList"></datalist>
         </div>
 
         <div class="field">
@@ -256,7 +278,7 @@
 
         <div class="field">
           <label>Bestellquelle</label>
-          <input id="f_orderSource" placeholder="supabase / lokal / ..." />
+          <input id="f_orderSource" placeholder="z.B. Syron / Berlin Tires / ..." />
         </div>
       </div>
 
@@ -299,7 +321,7 @@
         <div class="field"><label>Telefon</label><input id="c_phone" /></div>
 
         <div class="field"><label>Kennzeichen</label><input id="c_plate" /></div>
-        <div class="field"><label>E‑Mail</label><input id="c_email" /></div>
+        <div class="field"><label>E-Mail</label><input id="c_email" /></div>
 
         <div class="field"><label>Straße</label><input id="c_street" /></div>
         <div class="field"><label>PLZ</label><input id="c_zip" /></div>
@@ -326,15 +348,20 @@
       <div class="modal-head">
         <div>
           <div class="modal-title" id="stockModalTitle">Lager</div>
-          <div class="modal-sub">Artikel hinzufügen / ändern</div>
+          <div class="modal-sub">Lagereintrag</div>
         </div>
-        <button class="ghost big" id="s_close">✕</button>
+        <button class="ghost big" id="sbtnClose">✕</button>
       </div>
 
       <div class="form-grid">
-        <div class="field"><label>Reifengröße</label><input id="s_size" placeholder="z.B. 205/55 R16" /></div>
-        <div class="field"><label>Marke</label><input id="s_brand" list="s_brandList" /></div>
-        <datalist id="s_brandList"></datalist>
+        <div class="field">
+          <label>Reifengröße</label>
+          <input id="s_size" placeholder="z.B. 205/55 R16" />
+        </div>
+        <div class="field">
+          <label>Marke</label>
+          <input id="s_brand" list="brandList" placeholder="z.B. Syron" />
+        </div>
 
         <div class="field">
           <label>Saison</label>
@@ -345,10 +372,19 @@
             <option>Allwetter</option>
           </select>
         </div>
+        <div class="field">
+          <label>Modell</label>
+          <input id="s_model" list="modelList" placeholder="optional" />
+        </div>
 
-        <div class="field"><label>Modell</label><input id="s_model" placeholder="optional" /></div>
-        <div class="field"><label>DOT</label><input id="s_dot" placeholder="optional" /></div>
-        <div class="field"><label>Menge</label><input id="s_qty" type="number" min="0" step="1" /></div>
+        <div class="field">
+          <label>DOT</label>
+          <input id="s_dot" placeholder="optional" />
+        </div>
+        <div class="field">
+          <label>Menge</label>
+          <input id="s_qty" type="number" min="0" step="1" />
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -358,33 +394,6 @@
         <div class="right-actions">
           <button class="btn" id="s_cancel">Abbrechen</button>
           <button class="btn primary" id="s_save">Speichern</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= DAY CLOSE MODAL ================= -->
-  <div class="modal hidden" id="dayCloseModal">
-    <div class="modal-card">
-      <div class="modal-head">
-        <div>
-          <div class="modal-title">Tagesabschluss</div>
-          <div class="modal-sub">Export / Übersicht</div>
-        </div>
-        <button class="ghost big" id="d_close">✕</button>
-      </div>
-
-      <div class="modal-foot">
-        <div id="dayCloseList"></div>
-      </div>
-
-      <div class="modal-actions">
-        <div class="left-actions">
-          <button class="btn soft" id="d_exportOrder">Export Auswahl</button>
-          <button class="btn soft" id="d_exportAll">Export Alles</button>
-        </div>
-        <div class="right-actions">
-          <button class="btn" id="d_cancel">Schließen</button>
         </div>
       </div>
     </div>
