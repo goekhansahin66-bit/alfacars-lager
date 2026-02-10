@@ -1917,8 +1917,6 @@ async function bootstrap(){
     bindAutoTireFormat("f_size");
     bindAutoTireFormat("s_size");
 
-
-    // Tabs
     document.querySelectorAll(".tab").forEach(t=>{
       t.onclick = ()=> switchView(t.dataset.tab);
     });
@@ -1934,9 +1932,7 @@ async function bootstrap(){
     $("searchInput").addEventListener("input", ()=> renderCurrent());
     $("customerSearchInput").addEventListener("input", ()=> renderCustomers());
     $("stockSearchInput").addEventListener("input", ()=> renderStock());
-    if ($("notesSearchInput")) $("notesSearchInput").addEventListener("input", ()=> renderNotes());
 
-    // Order modal
     bindTap($("btnClose"), closeOrderModal);
     bindTap($("btnCancel"), closeOrderModal);
     bindTap($("btnSave"), saveOrder);
@@ -1945,22 +1941,31 @@ async function bootstrap(){
     ["f_qty","f_unit","f_deposit"].forEach(id=>{
       $(id).addEventListener("input", recalcOrder);
     });
-    $("f_brand").addEventListener("input", ()=> renderModelSuggestions("f_brand","f_season"));
-    $("f_season").addEventListener("change", ()=> renderModelSuggestions("f_brand","f_season"));
 
-    // Customer modal
     bindTap($("btnNewCustomer"), ()=> openCustomerModal(null));
     bindTap($("cbtnClose"), closeCustomerModal);
     bindTap($("cbtnCancel"), closeCustomerModal);
     bindTap($("cbtnSave"), saveCustomer);
     bindTap($("cbtnDelete"), deleteCustomer);
 
-    // Stock modal
     bindTap($("btnNewStock"), ()=> openStockModal(null));
     bindTap($("sbtnClose"), closeStockModal);
     bindTap($("s_cancel"), closeStockModal);
     bindTap($("s_save"), saveStock);
     bindTap($("s_delete"), deleteStock);
-// --- SAFETY CLOSING ---
+
+    setFoot("Lade Daten…");
+    await loadCustomers();
+    await loadOrders();
+    await loadStock();
+
+    renderCurrent();
+    setFoot("Bereit ✅");
+  } catch(e){
+    console.error(e);
+    alert("Startfehler: " + (e?.message || e));
+    setFoot("Fehler");
+  }
 }
 
+bootstrap();
