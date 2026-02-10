@@ -10,6 +10,12 @@ const TBL_ORDERS = "orders";
 const TBL_CUSTOMERS = "customers";
 const TBL_STOCK = "stock";
 
+// New modules
+const TBL_NOTES = "notes";
+const TBL_STAFF = "staff";
+const TBL_STAFF_LOG = "staff_log";
+
+
 /* ================================
    CONSTANTS
 ================================= */
@@ -56,6 +62,10 @@ let supabaseClient = null;
 let orders = [];
 let customers = [];
 let stock = [];
+
+let notes = [];
+let staff = [];
+let staffLog = [];
 
 let currentView = "orders";
 let editingOrderId = null;
@@ -460,6 +470,7 @@ function switchView(view){
     stock: $("stockBoard"),
     bestellen: $("bestellenBoard"),
     staff: $("staffBoard"),
+    notes: $("notesBoard"),
   };
 
   Object.entries(map).forEach(([k, el])=>{
@@ -480,6 +491,8 @@ function renderCurrent(){
   if (currentView === "customers") renderCustomers();
   if (currentView === "stock") renderStock();
   if (currentView === "bestellen") renderBestellen();
+  if (currentView === "staff") renderStaff();
+  if (currentView === "notes") renderNotes();
 }
 
 /* ================================
@@ -813,36 +826,40 @@ function renderReachability(){
   const box = $("reachBox");
   if (!box) return;
 
-  const active = orders.filter(o => o.status !== ARCHIVE_STATUS);
-  if (!active.length){
-    box.innerHTML = "Noch keine aktiven Bestellungen.";
+  if (!customers.length){
+    box.innerHTML = "Noch keine Kunden.";
     return;
   }
 
   const byCity = {};
   const bySource = {};
 
-  active.forEach(o=>{
-    const city = clean(o.city) || "Unbekannt";
-    const src = clean(o.orderSource || o.source) || "Unbekannt";
+  customers.forEach(c=>{
+    const city = clean(c.city) || "Unbekannt";
+    const src = clean(c.source) || "Unbekannt";
     byCity[city] = (byCity[city]||0) + 1;
     bySource[src] = (bySource[src]||0) + 1;
   });
 
+  const total = customers.length;
+
   const top = (obj) => Object.entries(obj)
     .sort((a,b)=>b[1]-a[1])
     .slice(0,10)
-    .map(([k,v])=>`<div>• <b>${k}</b>: ${v}</div>`)
+    .map(([k,v])=>{
+      const pct = Math.round((v/total)*100);
+      return `<div>• <b>${k}</b>: ${pct}% <span class="small-muted">(${v})</span></div>`;
+    })
     .join("");
 
   box.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div>
-        <div class="small-muted" style="margin-bottom:6px">Top Orte (aktiv)</div>
+        <div class="small-muted" style="margin-bottom:6px">Top Orte (Kunden)</div>
         ${top(byCity) || "—"}
       </div>
       <div>
-        <div class="small-muted" style="margin-bottom:6px">Top Kanäle (aktiv)</div>
+        <div class="small-muted" style="margin-bottom:6px">Top Herkunft (Kunden)</div>
         ${top(bySource) || "—"}
       </div>
     </div>
@@ -1218,6 +1235,626 @@ function renderBestellen(){
   });
 }
 
+
+/* ================================
+   STAFF (Mitarbeiter) – lokal + optional Supabase
+   - Zeiten: Mo–Fr 08:00–18:00, Sa 08:00–16:00
+   - Samstage: 2/Monat normal, ab 3. Samstag Bonus +8 €
+   - Status: Anwesend / Krank (ganzer Tag) / Krank ab Uhrzeit / Früher gegangen
+   - Alles nur nach Klick (du)
+================================= */
+
+const STAFF_WEEKDAY_HOURS = { start:"08:00", end:"18:00" };
+const STAFF_SATURDAY_HOURS = { start:"08:00", end:"16:00" };
+const STAFF_SATURDAY_BONUS = 8;
+const STAFF_SATURDAY_INCLUDED = 2;
+
+function todayISO(){
+  const d = new Date();
+  const z = new Date(d.getTime() - d.getTimezoneOffset()*60000);
+  return z.toISOString().slice(0,10);
+}
+function monthISO(dStr){ return (dStr||"").slice(0,7); }
+function isSaturday(dStr){
+  const d = new Date(dStr+"T00:00:00");
+  return d.getDay() === 6;
+}
+function isWeekday(dStr){
+  const d = new Date(dStr+"T00:00:00");
+  const g = d.getDay();
+  return g>=1 && g<=5;
+}
+function defaultHoursFor(dStr){
+  return isSaturday(dStr) ? STAFF_SATURDAY_HOURS : STAFF_WEEKDAY_HOURS;
+}
+
+/* ---------- Storage fallback (LocalStorage) ---------- */
+const LS_STAFF = "alfacars_staff_v1";
+const LS_STAFF_LOG = "alfacars_staff_log_v1";
+
+function lsGet(key, fallback){
+  try{
+    const v = localStorage.getItem(key);
+    if (!v) return fallback;
+    return JSON.parse(v);
+  } catch(_){ return fallback; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); } catch(_){}
+}
+
+/* ---------- Load staff (Supabase if table exists) ---------- */
+async function loadStaff(){
+  // try supabase
+  try{
+    const { data, error } = await supabaseClient
+      .from(TBL_STAFF)
+      .select("id,name,phone,note,created_at")
+      .order("created_at", { ascending:true });
+
+    if (error) throw error;
+    staff = (data||[]).map(x=>({ id:x.id, name:x.name||"", phone:x.phone||"", note:x.note||"", created_at:x.created_at||null }));
+    // if empty, keep empty (user can add)
+    return;
+  } catch(_){
+    // local fallback
+    staff = lsGet(LS_STAFF, [
+      { id:"m1", name:"Mitarbeiter 1", phone:"", note:"" },
+      { id:"m2", name:"Mitarbeiter 2", phone:"", note:"" },
+    ]);
+  }
+}
+
+async function saveStaffMember(member){
+  // Supabase first
+  try{
+    const row = {
+      id: member.id || newUuid(),
+      name: clean(member.name) || null,
+      phone: phoneClean(member.phone) || null,
+      note: clean(member.note) || null
+    };
+    if (!row.name) return alert("Bitte Name eingeben.");
+
+    const { error } = await supabaseClient.from(TBL_STAFF).upsert(row, { onConflict:"id" });
+    if (error) throw error;
+    await loadStaff();
+    return;
+  } catch(_){
+    // local
+    const row = { id: member.id || ("m"+Math.random().toString(16).slice(2)), name: clean(member.name), phone: phoneClean(member.phone), note: clean(member.note) };
+    if (!row.name) return alert("Bitte Name eingeben.");
+    const idx = staff.findIndex(s=>s.id===row.id);
+    if (idx>=0) staff[idx]=row; else staff.push(row);
+    lsSet(LS_STAFF, staff);
+  }
+}
+
+/* ---------- Attendance log ---------- */
+async function loadStaffLog(month){
+  // Supabase first
+  try{
+    const start = month + "-01";
+    const end = month + "-31";
+    const { data, error } = await supabaseClient
+      .from(TBL_STAFF_LOG)
+      .select("id,staff_id,day,status,time,note,created_at")
+      .gte("day", start)
+      .lte("day", end)
+      .order("day", { ascending:true });
+
+    if (error) throw error;
+    staffLog = (data||[]).map(x=>({
+      id:x.id,
+      staff_id:x.staff_id,
+      day:x.day,
+      status:x.status,
+      time:x.time||"",
+      note:x.note||"",
+      created_at:x.created_at||null
+    }));
+    return;
+  } catch(_){
+    staffLog = lsGet(LS_STAFF_LOG, []).filter(x=>monthISO(x.day)===month);
+  }
+}
+
+async function upsertStaffLog(entry){
+  const row = {
+    id: entry.id || newUuid(),
+    staff_id: entry.staff_id,
+    day: entry.day,
+    status: entry.status,
+    time: entry.time || null,
+    note: entry.note || null
+  };
+
+  // Supabase first
+  try{
+    const { error } = await supabaseClient.from(TBL_STAFF_LOG).upsert(row, { onConflict:"id" });
+    if (error) throw error;
+
+    // update local cache
+    const idx = staffLog.findIndex(x=>x.staff_id===row.staff_id && x.day===row.day);
+    const obj = { ...row };
+    if (idx>=0) staffLog[idx]=obj; else staffLog.push(obj);
+    return;
+  } catch(_){
+    const idx = staffLog.findIndex(x=>x.staff_id===row.staff_id && x.day===row.day);
+    const obj = { ...row };
+    if (idx>=0) staffLog[idx]=obj; else staffLog.push(obj);
+
+    // merge into full LS log
+    const all = lsGet(LS_STAFF_LOG, []);
+    const j = all.findIndex(x=>x.staff_id===row.staff_id && x.day===row.day);
+    if (j>=0) all[j]=obj; else all.push(obj);
+    lsSet(LS_STAFF_LOG, all);
+  }
+}
+
+function getLogFor(staffId, day){
+  return staffLog.find(x=>x.staff_id===staffId && x.day===day) || null;
+}
+
+function statusPill(status){
+  if (status==="present") return '<span class="pill green">Anwesend</span>';
+  if (status==="sick_full") return '<span class="pill red">Krank</span>';
+  if (status==="sick_from") return '<span class="pill yellow">Krank ab</span>';
+  if (status==="left_early") return '<span class="pill yellow">Früher</span>';
+  return '<span class="pill grey">—</span>';
+}
+
+function renderStaff(){
+  const list = $("staffTodayList");
+  const monthBox = $("staffMonthSummary");
+  const hint = $("staffMonthHint");
+  if (!list || !monthBox) return;
+
+  const month = $("staffMonth")?.value || monthISO(todayISO());
+  const day = $("staffDay")?.value || todayISO();
+  if (hint) hint.textContent = `${month} · Heute: ${day}`;
+
+  list.innerHTML = "";
+
+  if (!staff.length){
+    list.innerHTML = `<div class="note list">Noch keine Mitarbeiter. Klicke „+ Mitarbeiter“.</div>`;
+  } else {
+    staff.forEach(s=>{
+      const log = getLogFor(s.id, day);
+      const hours = defaultHoursFor(day);
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="card-top">
+          <div>
+            <div class="card-title">${clean(s.name) || "—"}</div>
+            <div class="card-sub">${clean(s.phone) ? "☎️ " + clean(s.phone) : ""} ${clean(s.note) ? "· " + clean(s.note) : ""}</div>
+          </div>
+          <div>${statusPill(log?.status || "")}</div>
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+          <span class="pill grey">${isSaturday(day) ? "Sa" : isWeekday(day) ? "Mo–Fr" : "So"} · ${hours.start}–${hours.end}</span>
+          ${log?.time ? `<span class="pill grey">Zeit: <b>${clean(log.time)}</b></span>` : ""}
+        </div>
+
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn success" data-act="present">✅ Anwesend</button>
+          <button class="btn danger" data-act="sick">❌ Krank (Tag)</button>
+          <button class="btn warn" data-act="sickfrom">⚠️ Krank ab…</button>
+          <button class="btn warn" data-act="early">⏰ Früher…</button>
+          <button class="btn soft" data-act="note">📝 Notiz</button>
+        </div>
+      `;
+
+      const doSave = async (status, time, note)=>{
+        if (READ_ONLY) return roAlert();
+        await upsertStaffLog({ staff_id:s.id, day, status, time: time||"", note: note||"" });
+        renderStaff(); // rerender
+      };
+
+      card.querySelector('[data-act="present"]').onclick = ()=> doSave("present", "", "");
+      card.querySelector('[data-act="sick"]').onclick = ()=> doSave("sick_full", "", "");
+      card.querySelector('[data-act="sickfrom"]').onclick = ()=>{
+        const t = prompt("Krank ab Uhrzeit (z.B. 12:00):", log?.time || "12:00");
+        if (!t) return;
+        doSave("sick_from", t, "");
+      };
+      card.querySelector('[data-act="early"]').onclick = ()=>{
+        const t = prompt("Früher gegangen (Uhrzeit, z.B. 12:00):", log?.time || "12:00");
+        if (!t) return;
+        doSave("left_early", t, "");
+      };
+      card.querySelector('[data-act="note"]').onclick = ()=>{
+        const n = prompt("Notiz (optional):", log?.note || "");
+        if (n===null) return;
+        doSave(log?.status || "present", log?.time || "", n);
+      };
+
+      list.appendChild(card);
+    });
+  }
+
+  // Month summary
+  monthBox.innerHTML = buildStaffMonthSummary(month);
+}
+
+function buildStaffMonthSummary(month){
+  if (!staff.length) return `<div class="note list">—</div>`;
+
+  const rows = staff.map(s=>{
+    const logs = staffLog.filter(x=>x.staff_id===s.id && monthISO(x.day)===month);
+    const present = logs.filter(x=>x.status==="present").length;
+    const sick = logs.filter(x=>x.status==="sick_full").length;
+    const partial = logs.filter(x=>x.status==="sick_from" || x.status==="left_early").length;
+
+    const satWorked = logs.filter(x=>isSaturday(x.day) && (x.status==="present" || x.status==="sick_from" || x.status==="left_early")).length;
+    const bonusDays = Math.max(0, satWorked - STAFF_SATURDAY_INCLUDED);
+    const bonus = bonusDays * STAFF_SATURDAY_BONUS;
+
+    return { name: s.name, present, sick, partial, satWorked, bonusDays, bonus };
+  });
+
+  return `
+    <div style="display:grid; gap:10px;">
+      ${rows.map(r=>`
+        <div class="kv">
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+            <div style="font-weight:950;">${clean(r.name)}</div>
+            <div class="pill green">Bonus: <b>${money(r.bonus).replace(" €","")}</b> €</div>
+          </div>
+          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill grey">Anwesend: <b>${r.present}</b></span>
+            <span class="pill red">Krank: <b>${r.sick}</b></span>
+            <span class="pill yellow">Teil-Tag: <b>${r.partial}</b></span>
+            <span class="pill grey">Samstage: <b>${r.satWorked}</b></span>
+            ${r.bonusDays ? `<span class="pill green">Bonus-Sa: <b>${r.bonusDays}</b></span>` : `<span class="pill grey">Bonus-Sa: <b>0</b></span>`}
+          </div>
+        </div>
+      `).join("")}
+      <div class="hint">Hinweis: Bonus zählt ab dem 3. gearbeiteten Samstag im Monat (+8 € pro zusätzlichem Samstag).</div>
+    </div>
+  `;
+}
+
+async function openAddStaff(){
+  if (READ_ONLY) return roAlert();
+  const name = prompt("Name Mitarbeiter:", "");
+  if (!name) return;
+  const phone = prompt("Telefon (optional):", "");
+  const note = prompt("Notiz (optional):", "");
+  await saveStaffMember({ id:null, name, phone, note });
+  renderStaff();
+}
+
+/* ================================
+   NOTES / KI – confirm-only actions
+   - Ohne API: lokale Erkennung (Lager rein/raus)
+   - Mit API (optional): Supabase Edge Function kann später angeschlossen werden
+================================= */
+
+const LS_NOTES = "alfacars_notes_v1";
+
+function noteMatchesQuery(n, q){
+  if (!q) return true;
+  const blob = [n.title,n.text,n.kind,n.created_at].join(" ").toLowerCase();
+  return blob.includes(q);
+}
+
+async function loadNotes(){
+  try{
+    const { data, error } = await supabaseClient
+      .from(TBL_NOTES)
+      .select("id,created_at,title,kind,text,done")
+      .order("created_at", { ascending:false });
+
+    if (error) throw error;
+    notes = (data||[]).map(x=>({
+      id:x.id,
+      created_at:x.created_at||null,
+      title:x.title||"",
+      kind:x.kind||"note",
+      text:x.text||"",
+      done: !!x.done
+    }));
+    return;
+  } catch(_){
+    notes = lsGet(LS_NOTES, []);
+  }
+}
+
+async function upsertNote(n){
+  const row = {
+    id: n.id || newUuid(),
+    title: clean(n.title) || null,
+    kind: clean(n.kind) || "note",
+    text: clean(n.text) || "",
+    done: !!n.done
+  };
+
+  try{
+    const { error } = await supabaseClient.from(TBL_NOTES).upsert(row, { onConflict:"id" });
+    if (error) throw error;
+    await loadNotes();
+    return;
+  } catch(_){
+    const all = lsGet(LS_NOTES, []);
+    const idx = all.findIndex(x=>x.id===row.id);
+    const obj = { ...row, created_at: n.created_at || new Date().toISOString() };
+    if (idx>=0) all[idx]=obj; else all.unshift(obj);
+    lsSet(LS_NOTES, all);
+    notes = all;
+  }
+}
+
+async function toggleNoteDone(id){
+  const n = notes.find(x=>x.id===id);
+  if (!n) return;
+  n.done = !n.done;
+  await upsertNote(n);
+  renderNotes();
+}
+
+function guessTitleFromText(text){
+  const t = clean(text);
+  if (!t) return "Notiz";
+  return t.length > 42 ? t.slice(0,42) + "…" : t;
+}
+
+function renderNotes(){
+  const list = $("notesList");
+  const count = $("notesCount");
+  if (!list) return;
+
+  const q = clean($("notesSearchInput")?.value).toLowerCase().trim();
+  const filtered = notes.filter(n=>noteMatchesQuery(n, q));
+
+  if (count) count.textContent = String(filtered.length);
+
+  list.innerHTML = "";
+  if (!filtered.length){
+    list.innerHTML = `<div class="note list">Noch keine Notizen. Schreibe oben etwas und klicke „Als Notiz speichern“.</div>`;
+    return;
+  }
+
+  filtered.forEach(n=>{
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${clean(n.title) || "Notiz"}</div>
+          <div class="card-sub">${n.created_at ? new Date(n.created_at).toLocaleString("de-DE") : ""} · ${clean(n.kind)||"note"}</div>
+        </div>
+        <div class="pill small ${n.done ? "green" : "grey"}">${n.done ? "Erledigt" : "Offen"}</div>
+      </div>
+      <div class="note list" style="margin-top:10px; white-space:pre-wrap;">${String(n.text||"")}</div>
+      <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn ${n.done ? "soft" : "success"}" data-act="done">${n.done ? "↩︎ Wieder offen" : "✓ Erledigt"}</button>
+      </div>
+    `;
+    card.querySelector('[data-act="done"]').onclick = ()=> toggleNoteDone(n.id);
+    list.appendChild(card);
+  });
+}
+
+/* ---------- Local command understanding (no API required) ---------- */
+function parseQty(text){
+  const m = String(text||"").match(/(\d+)\s*(st(ü|ue)ck|stk|stück|reifen)?/i);
+  if (m) return Number(m[1]||0);
+  return 0;
+}
+function parseSize(text){
+  const m = String(text||"").match(/(\d{3})\s*\/\s*(\d{2})\s*(?:R|r)?\s*(\d{2})/);
+  if (m) return normalizeTireSize(`${m[1]}/${m[2]} R${m[3]}`);
+  // allow "225 55 16"
+  const m2 = String(text||"").match(/(\d{3})\s+(\d{2})\s+(\d{2})/);
+  if (m2) return normalizeTireSize(`${m2[1]}/${m2[2]} R${m2[3]}`);
+  return "";
+}
+function parseSeason(text){
+  const t = normalizeText(text);
+  if (t.includes("ALLWETTER") || t.includes("GANZJAHRES") || t.includes("ALL SEASON")) return "Allwetter";
+  if (t.includes("SOMMER")) return "Sommer";
+  if (t.includes("WINTER")) return "Winter";
+  return "";
+}
+function parseBrandFromKnown(text){
+  const t = normalizeText(text);
+  // match from DEFAULT_BRANDS
+  for (const b of DEFAULT_BRANDS){
+    const key = normalizeText(b);
+    if (key && t.includes(key)) return b;
+  }
+  // special common
+  if (t.includes("BERLIN") && t.includes("TIRES")) return "Berlin Tires";
+  return "";
+}
+
+function detectLocalStockAction(text){
+  const t = normalizeText(text);
+  const wantsIn = t.includes("REINBEKOMMEN") || t.includes("EINGEKOMMEN") || t.includes("EINBUCH") || (t.includes("LAGER") && (t.includes("EINFUEG") || t.includes("EINFÜG")));
+  const wantsOut = t.includes("AUSBUCH") || t.includes("AUS DEM LAGER") || (t.includes("LAGER") && (t.includes("RAUS") || t.includes("ENTNEHM")));
+  if (!wantsIn && !wantsOut) return null;
+
+  const size = parseSize(text);
+  const brand = parseBrandFromKnown(text);
+  const season = parseSeason(text);
+  const qty = parseQty(text);
+
+  if (!size || !brand || !season || !qty) return { error:"Ich brauche mindestens Größe, Marke, Saison und Menge (z.B. 225/55 R16 Berlin Tires Allwetter 4 Stück)." };
+
+  return {
+    type: wantsIn ? "stock_add" : "stock_remove",
+    payload: { size, brand, season, qty }
+  };
+}
+
+function showAiSuggestion(html){
+  const box = $("aiSuggestions");
+  if (!box) return;
+  box.innerHTML = html;
+  box.classList.remove("hidden");
+}
+function clearAiSuggestion(){
+  const box = $("aiSuggestions");
+  if (!box) return;
+  box.innerHTML = "";
+  box.classList.add("hidden");
+}
+
+async function applyStockDelta({ size, brand, season, qtyDelta }){
+  // find matching stock item
+  const match = stock.find(s =>
+    normalizeText(s.size)===normalizeText(size) &&
+    normalizeText(s.brand)===normalizeText(brand) &&
+    normalizeText(s.season)===normalizeText(season)
+  );
+
+  if (!match){
+    if (qtyDelta < 0){
+      return { ok:false, message:"Artikel nicht im Lager gefunden – kann nicht ausbuchen." };
+    }
+    // create new
+    await upsertStockSupabase({ id:null, size, brand, season, model:"", dot:"", qty: qtyDelta });
+    await loadStock();
+    return { ok:true, message:"Neu im Lager angelegt und gebucht ✅" };
+  }
+
+  const newQty = Number(match.qty||0) + Number(qtyDelta||0);
+  if (newQty < 0){
+    return { ok:false, message:`Zu viel ausbuchen: Bestand ${match.qty}, du willst ${Math.abs(qtyDelta)}.` , max:Number(match.qty||0) };
+  }
+
+  await updateStockQtySupabase(match.id, newQty);
+  await loadStock();
+  return { ok:true, message:`Lager aktualisiert ✅ (neu: ${newQty})` };
+}
+
+function appendChat(role, text){
+  const log = $("aiChatLog");
+  if (!log) return;
+  const div = document.createElement("div");
+  div.className = "note list";
+  div.style.marginBottom = "10px";
+  div.innerHTML = `<b>${role}:</b> ${String(text||"").replace(/</g,"&lt;")}`;
+  log.prepend(div);
+}
+
+async function aiSend(){
+  if (READ_ONLY) return roAlert();
+  const input = $("aiInput");
+  if (!input) return;
+  const text = clean(input.value);
+  if (!text) return;
+
+  clearAiSuggestion();
+  appendChat("Du", text);
+
+  // Local understanding first (works without costs)
+  const local = detectLocalStockAction(text);
+  if (local?.error){
+    appendChat("KI", local.error);
+    return;
+  }
+  if (local?.type){
+    const { size, brand, season, qty } = local.payload;
+    const isAdd = local.type==="stock_add";
+    const delta = isAdd ? qty : -qty;
+    const verb = isAdd ? "einbuchen" : "ausbuchen";
+
+    // find current
+    const match = stock.find(s =>
+      normalizeText(s.size)===normalizeText(size) &&
+      normalizeText(s.brand)===normalizeText(brand) &&
+      normalizeText(s.season)===normalizeText(season)
+    );
+    const current = match ? Number(match.qty||0) : 0;
+    const after = current + delta;
+
+    if (!isAdd && after < 0){
+      showAiSuggestion(`
+        ⚠️ <b>Zu viel ausbuchen</b><br>
+        Artikel: <b>${brand}</b> · ${size} · ${season}<br>
+        Bestand: <b>${current}</b> · Wunsch: <b>${qty}</b><br><br>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn danger" id="btnAiCancel">Abbrechen</button>
+          <button class="btn primary" id="btnAiMax">Nur ${current} ausbuchen</button>
+        </div>
+      `);
+      $("btnAiCancel").onclick = ()=>{ clearAiSuggestion(); appendChat("KI","Abgebrochen."); };
+      $("btnAiMax").onclick = async ()=>{
+        clearAiSuggestion();
+        const res = await applyStockDelta({ size, brand, season, qtyDelta: -current });
+        appendChat("KI", res.message);
+        renderStock();
+        if (currentView==="bestellen") renderBestellen();
+      };
+      return;
+    }
+
+    showAiSuggestion(`
+      <b>Vorschlag erkannt:</b> Lager ${verb}<br>
+      • Größe: <b>${size}</b><br>
+      • Marke: <b>${brand}</b><br>
+      • Saison: <b>${season}</b><br>
+      • Menge: <b>${qty}</b><br><br>
+      Bestand: <b>${current}</b> → Neu: <b>${after}</b><br><br>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn soft" id="btnAiEdit">Bearbeiten</button>
+        <button class="btn danger" id="btnAiCancel">Abbrechen</button>
+        <button class="btn primary" id="btnAiConfirm">Bestätigen</button>
+      </div>
+    `);
+
+    $("btnAiCancel").onclick = ()=>{ clearAiSuggestion(); appendChat("KI","Abgebrochen."); };
+    $("btnAiEdit").onclick = ()=>{
+      const newQty = prompt("Menge ändern:", String(qty));
+      if (!newQty) return;
+      const q2 = Math.max(0, Number(newQty||0));
+      const d2 = isAdd ? q2 : -q2;
+      // rerun with changed
+      input.value = `${text} (${q2} Stück)`;
+      clearAiSuggestion();
+      appendChat("KI", "Menge angepasst – bitte erneut senden.");
+    };
+    $("btnAiConfirm").onclick = async ()=>{
+      clearAiSuggestion();
+      const res = await applyStockDelta({ size, brand, season, qtyDelta: delta });
+      appendChat("KI", res.message);
+      renderStock();
+      if (currentView==="bestellen") renderBestellen();
+    };
+
+    return;
+  }
+
+  // If nothing recognized locally, store as note suggestion
+  appendChat("KI", "Ich habe keine Lager-/Bestell-Aktion erkannt. Du kannst das als Notiz speichern.");
+}
+
+async function aiSaveAsNote(){
+  if (READ_ONLY) return roAlert();
+  const text = clean($("aiInput")?.value);
+  if (!text) return alert("Bitte erst Text eingeben.");
+  await upsertNote({
+    id:null,
+    title: guessTitleFromText(text),
+    kind: "note",
+    text,
+    done:false,
+    created_at: new Date().toISOString()
+  });
+  $("aiInput").value = "";
+  appendChat("System", "Als Notiz gespeichert ✅");
+  renderNotes();
+}
+
+/* ================================
+   END STAFF + NOTES
+================================= */
+
 /* ================================
    EXPORT (CSV)
 ================================= */
@@ -1297,6 +1934,7 @@ async function bootstrap(){
     $("searchInput").addEventListener("input", ()=> renderCurrent());
     $("customerSearchInput").addEventListener("input", ()=> renderCustomers());
     $("stockSearchInput").addEventListener("input", ()=> renderStock());
+    if ($("notesSearchInput")) $("notesSearchInput").addEventListener("input", ()=> renderNotes());
 
     // Order modal
     bindTap($("btnClose"), closeOrderModal);
@@ -1324,22 +1962,3 @@ async function bootstrap(){
     bindTap($("s_save"), saveStock);
     bindTap($("s_delete"), deleteStock);
 
-    $("s_brand").addEventListener("input", ()=> renderModelSuggestions("s_brand","s_season"));
-    $("s_season").addEventListener("change", ()=> renderModelSuggestions("s_brand","s_season"));
-
-    // Initial load
-    setFoot("Lade Daten…");
-    await loadCustomers();
-    await loadOrders();
-    await loadStock();
-
-    renderCurrent();
-    setFoot("Bereit ✅");
-  } catch(e){
-    console.error(e);
-    alert("Startfehler: " + (e?.message || e));
-    setFoot("Fehler");
-  }
-}
-
-bootstrap();
