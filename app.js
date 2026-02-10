@@ -1146,14 +1146,8 @@ function switchView(view) {
   if (view === "customers")  renderCustomers();
   if (view === "stock")      renderStock();
   if (view === "bestellen")  renderBestellen();
-});
-
-  if (view === "orders") renderOrders();
-  if (view === "archive") renderArchive();
-  if (view === "customers") renderCustomers();
-  if (view === "stock") renderStock();
-  if (view === "bestellen") renderBestellen();
-});
+}
+);
 
   if (view === "orders") {
     renderOrders();
