@@ -79,7 +79,6 @@ function phoneClean(v){ return clean(v).replace(/\s+/g,""); }
 function emailClean(v){ return clean(v).toLowerCase(); }
 function plateClean(v){ return clean(v).toUpperCase().replace(/[\s-]+/g,""); }
 
-
 function normalizeTireSize(input){
   if (!input) return "";
 
@@ -92,26 +91,24 @@ function normalizeTireSize(input){
     .map(x=>x.trim())
     .filter(Boolean);
 
-  // 205/55/16 → 205/55 R16
+  // full size: 205 55 16
   if (nums.length >= 3){
-    const w = nums[0], h = nums[1], r = nums[2];
-    if (w.length === 3 && h.length === 2 && r.length === 2){
+    const [w,h,r] = nums;
+    if (w.length===3 && h.length===2 && r.length===2){
       return `${w}/${h} R${r}`;
     }
   }
 
-  // 205/16 → assume 55 → 205/55 R16
+  // short size: 205 16 -> assume 55
   if (nums.length === 2){
-    const w = nums[0], r = nums[1];
-    if (w.length === 3 && r.length === 2){
+    const [w,r] = nums;
+    if (w.length===3 && r.length===2){
       return `${w}/55 R${r}`;
     }
   }
 
   return raw.trim();
 }
-
-
 
 function normalizeText(s){
   return (s||"")
@@ -372,7 +369,8 @@ async function upsertOrderSupabase(order){
     size: order.size,
     brand: order.brand || "",
     season: order.season || "",
-    model: order.model || "",
+    // model column removed (not in DB)
+
     qty: Number(order.qty || 0),
     unit: Number(order.unit || 0),
     deposit: Number(order.deposit || 0),
