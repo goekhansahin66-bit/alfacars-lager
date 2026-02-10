@@ -1125,21 +1125,35 @@ function exportExcelWorkbook(){
 function switchView(view) {
   currentView = view;
 
-  const ordersBoard   = document.getElementById("ordersBoard");
-  const archiveBoard  = document.getElementById("archiveBoard");
-  const customerBoard = document.getElementById("customerBoard");
-  const stockBoard    = document.getElementById("stockBoard");
-  const bestellenBoard= document.getElementById("bestellenBoard");
+  const ordersBoard    = document.getElementById("ordersBoard");
+  const archiveBoard   = document.getElementById("archiveBoard");
+  const customerBoard  = document.getElementById("customerBoard");
+  const stockBoard     = document.getElementById("stockBoard");
+  const bestellenBoard = document.getElementById("bestellenBoard");
 
-  if (ordersBoard)   ordersBoard.classList.toggle("hidden", view !== "orders");
-  if (archiveBoard)  archiveBoard.classList.toggle("hidden", view !== "archive");
-  if (customerBoard) customerBoard.classList.toggle("hidden", view !== "customers");
-  if (stockBoard)    stockBoard.classList.toggle("hidden", view !== "stock");
+  if (ordersBoard)    ordersBoard.classList.toggle("hidden", view !== "orders");
+  if (archiveBoard)   archiveBoard.classList.toggle("hidden", view !== "archive");
+  if (customerBoard)  customerBoard.classList.toggle("hidden", view !== "customers");
+  if (stockBoard)     stockBoard.classList.toggle("hidden", view !== "stock");
   if (bestellenBoard) bestellenBoard.classList.toggle("hidden", view !== "bestellen");
 
   document.querySelectorAll(".tab").forEach(t => {
     t.classList.toggle("active", t.dataset.tab === view);
   });
+
+  if (view === "orders")     renderOrders();
+  if (view === "archive")    renderArchive();
+  if (view === "customers")  renderCustomers();
+  if (view === "stock")      renderStock();
+  if (view === "bestellen")  renderBestellen();
+});
+
+  if (view === "orders") renderOrders();
+  if (view === "archive") renderArchive();
+  if (view === "customers") renderCustomers();
+  if (view === "stock") renderStock();
+  if (view === "bestellen") renderBestellen();
+});
 
   if (view === "orders") {
     renderOrders();
