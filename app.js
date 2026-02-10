@@ -618,6 +618,99 @@ const STATUSES = ["Bestellt","Anrufen","Erledigt"];
 const ARCHIVE_STATUS = "Archiv";
 const TARGET_QTY = 4; // Sollbestand fürs Lager
 
+// =========================================================
+// 📦 BESTELLEN (AUTO-LISTE) – nur Anzeige
+// - Quelle: Lager (stock)
+// - Marken: Syron, Berlin Tires
+// - Zusammenfassung: Größe + Marke + Saison
+// - Regel: qty < TARGET_QTY (4)
+// =========================================================
+const BESTELL_MARKEN = ["SYRON", "BERLIN TIRES"]; // normalisiert (uppercase)
+
+function isBestellMarke(brand){
+  const b = normalizeText(brand);
+  return BESTELL_MARKEN.includes(b);
+}
+
+function bestellKeyFromStockItem(s){
+  const sizeNorm = normalizeTireSize(s?.size || "");
+  const sizeKey = sizeToKey(sizeNorm) || sizeToKey(s?.size || "") || normalizeText(sizeNorm);
+  const brandKey = normalizeText(s?.brand || "");
+  const seasonKey = normalizeText(s?.season || "");
+  return `${sizeKey}|${brandKey}|${seasonKey}`;
+}
+
+function renderBestellen(){
+  const board = document.getElementById("bestellenBoard");
+  const listEl = document.getElementById("bestellenList");
+  const countEl = document.getElementById("bestellenCount");
+  if (!listEl || !countEl) return;
+
+  // Sammeln & zusammenfassen
+  const map = new Map();
+
+  (stock || []).forEach(s=>{
+    if (!isBestellMarke(s?.brand)) return;
+
+    const qty = Number(s?.qty || 0);
+    if (!(qty >= 0)) return;
+
+    const key = bestellKeyFromStockItem(s);
+    const prev = map.get(key) || {
+      size: normalizeTireSize(s?.size || ""),
+      brand: (s?.brand || "").trim(),
+      season: (s?.season || "").trim(),
+      qty: 0
+    };
+    prev.qty += qty;
+    // bevorzugt eine „schöne“ Schreibweise (z.B. "Berlin Tires" statt "BERLIN TIRES")
+    if (!prev.brand && s?.brand) prev.brand = String(s.brand).trim();
+    if (!prev.season && s?.season) prev.season = String(s.season).trim();
+    if (!prev.size && s?.size) prev.size = normalizeTireSize(s.size);
+    map.set(key, prev);
+  });
+
+  // Fehlmengen berechnen, nur wenn wirklich was fehlt
+  const rows = Array.from(map.values())
+    .map(r => ({...r, missing: Math.max(0, TARGET_QTY - Number(r.qty||0))}))
+    .filter(r => r.missing > 0);
+
+  // Sort: Marke, Größe (nach Key), Saison
+  rows.sort((a,b)=>{
+    const ba = normalizeText(a.brand), bb = normalizeText(b.brand);
+    if (ba !== bb) return ba.localeCompare(bb, "de");
+    const sa = sizeToKey(a.size) || normalizeText(a.size);
+    const sb = sizeToKey(b.size) || normalizeText(b.size);
+    if (sa !== sb) return sa.localeCompare(sb, "de");
+    return normalizeText(a.season).localeCompare(normalizeText(b.season), "de");
+  });
+
+  countEl.textContent = String(rows.length);
+  listEl.innerHTML = "";
+
+  if (!rows.length){
+    listEl.innerHTML = `<div class="note list">✅ Alles vorhanden – keine Bestellung nötig.</div>`;
+    return;
+  }
+
+  // Render Cards
+  rows.forEach(r=>{
+    const card = document.createElement("div");
+    card.className = "card bestellen-card";
+    card.innerHTML = `
+      <div class="card-top">
+        <div>
+          <div class="card-title">${xmlEscape(r.size || "")}</div>
+          <div class="card-sub">${xmlEscape(r.brand || "")} · ${xmlEscape(r.season || "")}</div>
+        </div>
+        <div class="pill yellow">Fehlen: ${Number(r.missing)} Stück</div>
+      </div>
+      <div class="small-muted" style="margin-top:10px;">Aktuell im Lager: ${Number(r.qty||0)} / Soll: ${TARGET_QTY}</div>
+    `;
+    listEl.appendChild(card);
+  });
+}
+
 // ⚠️ Orders werden NICHT mehr aus localStorage geladen.
 //    Quelle der Wahrheit ist Supabase.
 let orders = [];
@@ -680,6 +773,8 @@ function saveCustomers() { localStorage.setItem(CUSTOMER_KEY, JSON.stringify(cus
 function saveStock() {
   localStorage.setItem(STOCK_KEY, JSON.stringify(stock));
   syncStockToSupabase(); // 🔄 AUTO-SYNC
+  // Wenn gerade der 📦 Bestellen-Tab offen ist: Liste sofort aktualisieren
+  try { if (currentView === "bestellen") renderBestellen(); } catch(e) {}
 }
 function saveAll(){ saveOrders(); saveCustomers(); saveStock(); }
 
@@ -1034,11 +1129,13 @@ function switchView(view) {
   const archiveBoard  = document.getElementById("archiveBoard");
   const customerBoard = document.getElementById("customerBoard");
   const stockBoard    = document.getElementById("stockBoard");
+  const bestellenBoard= document.getElementById("bestellenBoard");
 
   if (ordersBoard)   ordersBoard.classList.toggle("hidden", view !== "orders");
   if (archiveBoard)  archiveBoard.classList.toggle("hidden", view !== "archive");
   if (customerBoard) customerBoard.classList.toggle("hidden", view !== "customers");
   if (stockBoard)    stockBoard.classList.toggle("hidden", view !== "stock");
+  if (bestellenBoard) bestellenBoard.classList.toggle("hidden", view !== "bestellen");
 
   document.querySelectorAll(".tab").forEach(t => {
     t.classList.toggle("active", t.dataset.tab === view);
@@ -1062,6 +1159,8 @@ function switchView(view) {
       renderStock();
 try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
     }
+  } else if (view === "bestellen") {
+    renderBestellen();
   }
 }
 
@@ -1663,6 +1762,7 @@ async function loadStockFromSupabase() {
   }));
 
   renderStock();
+  try { if (currentView === "bestellen") renderBestellen(); } catch(e) {}
 try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
 }
 
@@ -1922,6 +2022,7 @@ function saveStockItem(){
 
   closeStockModal();
   renderStock();
+  try { if (currentView === "bestellen") renderBestellen(); } catch(e) {}
 try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
 }
 
@@ -1933,6 +2034,7 @@ function deleteStockItem(){
   saveStock();
   closeStockModal();
   renderStock();
+  try { if (currentView === "bestellen") renderBestellen(); } catch(e) {}
 try{ renderOrderList(stocks||stock||window.stocks); }catch(e){}
 }
 
