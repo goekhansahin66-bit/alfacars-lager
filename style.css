@@ -113,6 +113,13 @@ body{
 }
 .board.hidden{display:none !important;}
 
+/* ✅ Handy-Fix: Spalten untereinander, damit „Erledigt“ immer erreichbar ist */
+@media (max-width: 900px){
+  .board{
+    grid-template-columns: 1fr;
+  }
+}
+
 .column{
   background: rgba(255,255,255,.55);
   border:1px solid rgba(229,231,235,.9);
@@ -144,7 +151,14 @@ body{
   font-weight:900;
 }
 
-.col-body{padding:12px;overflow:auto;min-height:0;-webkit-overflow-scrolling:touch}
+/* ✅ iOS scroll safe */
+.col-body{
+  padding:12px;
+  overflow:auto;
+  min-height:0;
+  -webkit-overflow-scrolling:touch;
+  touch-action: pan-y;
+}
 
 .card{
   background:var(--panel);
@@ -195,6 +209,8 @@ body{
 }
 .note.list{background: rgba(2,8,23,.03); border:1px solid rgba(148,163,184,.18);}
 
+.small-muted{font-size:11px;color:var(--muted);font-weight:800}
+
 .modal{
   position:fixed;
   inset:0;
@@ -210,11 +226,12 @@ body{
 
 .modal-card{
   width:min(920px, 96vw);
+  max-height: 88vh;
+  overflow:auto;
   background:var(--panel);
   border:1px solid rgba(229,231,235,.95);
   border-radius:18px;
   box-shadow: var(--shadow);
-  overflow:hidden;
 }
 .modal-head{
   display:flex;
@@ -233,6 +250,10 @@ body{
   grid-template-columns:1fr 1fr;
   gap:12px;
 }
+@media (max-width: 700px){
+  .form-grid{grid-template-columns:1fr;}
+}
+
 .field label{
   display:block;
   font-size:12px;
@@ -254,6 +275,9 @@ body{
 .span-2{grid-column:1 / -1}
 
 .calc-row{display:flex;gap:10px;padding:0 14px 12px 14px}
+@media (max-width: 700px){
+  .calc-row{flex-direction:column;}
+}
 .calc{
   flex:1;
   background: rgba(2,8,23,.03);
@@ -287,8 +311,6 @@ body{
   border:1px solid rgba(209,213,219,.9);
   font-weight:900;
 }
-
-.small-muted{font-size:11px;color:var(--muted);font-weight:800}
 
 /* Read-only (optional) */
 .read-only #btnNew,
