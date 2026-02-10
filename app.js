@@ -1961,4 +1961,6 @@ async function bootstrap(){
     bindTap($("s_cancel"), closeStockModal);
     bindTap($("s_save"), saveStock);
     bindTap($("s_delete"), deleteStock);
+// --- SAFETY CLOSING ---
+}
 
