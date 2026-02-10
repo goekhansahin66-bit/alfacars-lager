@@ -34,6 +34,7 @@
       <button class="tab" data-tab="stock">Lager</button>
       <button class="tab" data-tab="bestellen">📦 Bestellen</button>
       <button class="tab" data-tab="staff">👥 Mitarbeiter</button>
+      <button class="tab" data-tab="notes">🧠 Notizen / KI</button>
     </div>
 
     <!-- ===== ORDERS BOARD ===== -->
@@ -146,20 +147,99 @@
     <div class="board hidden" id="staffBoard">
       <div class="column" style="grid-column:1/-1;">
         <div class="col-head">
-          <div class="col-title">👥 Mitarbeiter (Grundgerüst)</div>
-          <div class="col-count">coming soon</div>
+          <div class="col-title">👥 Mitarbeiter</div>
+          <div class="col-count" id="staffMonthHint">—</div>
         </div>
         <div class="col-body">
-          <div class="note list">
-            Hier kommt später euer Mitarbeiter-Portal rein: Krankheitstage, Fehltage, Überstunden, Vorschüsse usw.
-            <br><br>
-            Für jetzt ist das nur der Bereich (UI + Navigation), damit wir sauber weiterbauen können.
+          
+          <div class="note list" style="margin-bottom:12px;">
+            Zeiten automatisch: <b>Mo–Fr 08:00–18:00</b> · <b>Sa 08:00–16:00</b> · Bonus: ab dem <b>3. Samstag</b> im Monat <b>+8 €</b> (pro zusätzlichem Samstag)
           </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+            <div class="field" style="min-width:220px; flex:0 0 auto;">
+              <label style="display:block; font-size:12px; color:var(--muted); font-weight:900; margin-bottom:6px;">Monat</label>
+              <input id="staffMonth" type="month" />
+              <div class="hint">Für Bonus/Übersicht.</div>
+            </div>
+
+            <div class="field" style="min-width:220px; flex:0 0 auto;">
+              <label style="display:block; font-size:12px; color:var(--muted); font-weight:900; margin-bottom:6px;">Heute</label>
+              <input id="staffDay" type="date" />
+              <div class="hint">Status klicken: anwesend / krank / ab Uhrzeit / früher.</div>
+            </div>
+
+            <div style="display:flex; align-items:flex-end; gap:8px; flex-wrap:wrap;">
+              <button class="btn primary" id="btnAddStaff">+ Mitarbeiter</button>
+              <button class="btn soft" id="btnStaffRefresh">Aktualisieren</button>
+            </div>
+          </div>
+
+          <div id="staffTodayList"></div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="card-top">
+              <div>
+                <div class="card-title">Monatsübersicht</div>
+                <div class="card-sub">Anwesenheit · Krankheit · Samstage · Bonus</div>
+              </div>
+              <div class="pill small grey">nur du</div>
+            </div>
+            <div id="staffMonthSummary" style="margin-top:10px;"></div>
+          </div>
+</div>
+      </div>
+    </div>
+
+    
+    <!-- ===== NOTES BOARD ===== -->
+    <div class="board hidden" id="notesBoard">
+      <div class="column" style="grid-column:1/-1;">
+        <div class="col-head">
+          <div class="col-title">🧠 Notizen / KI (mit Bestätigung)</div>
+          <div class="col-count" id="notesCount">0</div>
+        </div>
+
+        <div class="col-body">
+          <div class="note list" style="margin-bottom:12px;">
+            Schreibe oder sprich wie mit ChatGPT. Die KI darf <b>nur Vorschläge</b> machen – du bestätigst jede Aktion (Lager/Bestellung) per Klick.
+          </div>
+
+          <div class="search" style="box-shadow:none; margin-bottom:12px;">
+            <span class="icon">🔎</span>
+            <input id="notesSearchInput" placeholder="Notizen suchen (Text, Datum …)" />
+          </div>
+
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-top">
+              <div>
+                <div class="card-title">KI-Eingabe</div>
+                <div class="card-sub">Beispiel: „Ich habe Reifen reinbekommen: 225/55 R16 Berlin Tires Allwetter 4 Stück“</div>
+              </div>
+              <div class="pill small grey">nur Vorschlag</div>
+            </div>
+
+            <div style="margin-top:10px;">
+              <textarea id="aiInput" rows="4" style="width:100%; padding:10px; border-radius:14px; border:1px solid rgba(209,213,219,.9);"></textarea>
+            </div>
+
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn primary" id="btnAiSend">Mit KI sprechen</button>
+              <button class="btn soft" id="btnAiSaveNote">Als Notiz speichern</button>
+              <button class="btn soft" id="btnAiClear">Leeren</button>
+            </div>
+
+            <div id="aiSuggestions" class="note list hidden" style="margin-top:10px;"></div>
+            <div id="aiChatLog" style="margin-top:10px;"></div>
+          </div>
+
+          <div id="notesList"></div>
         </div>
       </div>
     </div>
 
-    <!-- ===== FOOTER ===== -->
+
+<!-- ===== FOOTER ===== -->
     <div class="foot">
       <span class="muted" id="footStatus">Bereit</span>
     </div>
