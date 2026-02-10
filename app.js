@@ -79,16 +79,39 @@ function phoneClean(v){ return clean(v).replace(/\s+/g,""); }
 function emailClean(v){ return clean(v).toLowerCase(); }
 function plateClean(v){ return clean(v).toUpperCase().replace(/[\s-]+/g,""); }
 
+
 function normalizeTireSize(input){
   if (!input) return "";
-  let s = String(input).toUpperCase().replace(/[^0-9R/ ]/g,"");
-  s = s.replace(/\s+/g," ").trim();
-  let m = s.match(/(\d{3})\s*\/\s*(\d{2})\s*R\s*(\d{2})/);
-  if (m) return `${m[1]}/${m[2]} R${m[3]}`;
-  m = s.match(/(\d{3})\s*\/\s*(\d{2})\s*R?(\d{2})/);
-  if (m) return `${m[1]}/${m[2]} R${m[3]}`;
-  return String(input).trim();
+
+  const raw = String(input).toUpperCase();
+
+  const nums = raw
+    .replace(/R/gi," ")
+    .replace(/[^0-9]/g," ")
+    .split(" ")
+    .map(x=>x.trim())
+    .filter(Boolean);
+
+  // 205/55/16 → 205/55 R16
+  if (nums.length >= 3){
+    const w = nums[0], h = nums[1], r = nums[2];
+    if (w.length === 3 && h.length === 2 && r.length === 2){
+      return `${w}/${h} R${r}`;
+    }
+  }
+
+  // 205/16 → assume 55 → 205/55 R16
+  if (nums.length === 2){
+    const w = nums[0], r = nums[1];
+    if (w.length === 3 && r.length === 2){
+      return `${w}/55 R${r}`;
+    }
+  }
+
+  return raw.trim();
 }
+
+
 
 function normalizeText(s){
   return (s||"")
